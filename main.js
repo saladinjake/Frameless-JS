@@ -91,10 +91,10 @@ async function loadPage(route) {
 }
 
 function handleHashChange() {
-  const hash = location.hash.replace('#', '') || 'home';
-  const route = routes.find((r) => r.path === hash);
+  const { path, params } = getRouteAndParams();
+  const route = routes.find((r) => r.path === path);
   if (route) {
-    loadPage(route);
+    loadPage(route, params);
   } else {
     app.innerHTML = `<h2>404 - Not Found</h2>`;
   }
