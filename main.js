@@ -1,5 +1,9 @@
 const app = document.getElementById('app');
 
+const Config = {
+  fetchOverNetworkFiles: false,
+};
+
 const routes = [
   {
     path: 'home',
@@ -25,32 +29,55 @@ const routes = [
   },
 ];
 
+function loadScriptElements(fragment) {
+  const scripts = fragment.querySelectorAll('script');
+  scripts.forEach((oldScript) => {
+    const newScript = document.createElement('script');
+    if (oldScript.src) {
+      newScript.src = oldScript.src;
+    } else {
+      newScript.textContent = oldScript.textContent;
+    }
+    document.body.appendChild(newScript); // executes immediately
+    oldScript.remove();
+  });
+}
+
 async function loadPage(route) {
   if (route.middleware && !route.middleware()) {
-    return (app.innerHTML = `<p>Access denied or cancelled.</p>`);
+    app.innerHTML = `<p>Access denied or cancelled.</p>`;
+    return;
   }
 
   try {
     const res = await fetch(route.view);
-    const html = await res.text();
-    app.innerHTML = html;
+    const htmlText = await res.text();
 
-    if (typeof route.onLoad === 'function') {
-      route.onLoad();
-    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlText, 'text/html');
+    const content = doc.body;
+
+    app.innerHTML = ''; // clear existing content
+    Array.from(content.children).forEach((child) =>
+      app.appendChild(child.cloneNode(true)),
+    );
+
+    loadScriptElements(content); // re-run embedded scripts
+
+    route.onLoad?.();
   } catch (err) {
     app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
+    console.error(err);
   }
 }
 
 function handleHashChange() {
   const hash = location.hash.replace('#', '') || 'home';
   const route = routes.find((r) => r.path === hash);
-
   if (route) {
     loadPage(route);
   } else {
-    app.innerHTML = `<h2>404 - Page not found</h2>`;
+    app.innerHTML = `<h2>404 - Not Found</h2>`;
   }
 }
 
