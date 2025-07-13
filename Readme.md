@@ -72,6 +72,52 @@ my-app/
     └── utils/
 ````
 
+## MVP FEATURES
+
+````
+⚙️ Core Routing & Page Features
+Feature	Description
+✅ Hash-based Routing	No server needed, works with static hosting
+✅ Dynamic Parameters	e.g. /user/:id, auto-parsed into params
+✅ RegExp Routes	e.g. /blog/(.*), for advanced flexibility
+✅ Fallback Routes	Support * wildcard + /folder/index fallback
+✅ Middleware Support	Per-route + global — auth, guards, logging
+✅ Default Route / Landing Page	Load home or dashboard on empty hash
+✅ Programmatic Navigation	navigate('route') from anywhere
+✅ View Injection	Load partial HTML and inject into #app
+✅ Scoped JS Execution	Each page module gets params and stays isolated
+✅ Multiple Scripts per Route	Load pages/user.js, pages/user-stats.js, etc.
+
+🧠 Developer Experience (DX)
+Feature	Description
+✅ init(params) Convention	Every page can return actions, lifecycle, etc.
+✅ data-action Binding	Declarative events like data-action="submitForm"
+✅ Built-in bindActions()	Auto-wires methods to elements with minimal code
+✅ DOM-Ready Safety	Built-in requestAnimationFrame() for safe DOM use
+✅ No Window Pollution	Keeps all logic modular, no globals
+✅ Live Reloading via Vite	Full dev experience with no bundler
+✅ Friendly Error Messages	Dev-time alerts when views or scripts are missing
+✅ Named Route Helpers (optional)	navigateTo('user', { id: 4 })
+
+⚡ Performance & Loading
+Feature	Description
+✅ On-demand JS Module Loading	No preload — each route loads only its JS
+✅ HTML Fragment Injection	Avoids full page reloads
+✅ Minimal JS Overhead	No framework dependency (Vanilla + Vite)
+✅ Loading Spinner Support	Show/hide loader with async state
+✅ Script Cache Busting	Prevent stale code via ?t=${Date.now()}
+
+🏗️ Large App Support / Architecture
+Feature	Description
+✅ Modular Page Folder Structure	Each view has its own .html + .js
+✅ Route-Level Middleware	Protect routes without mixing page logic
+✅ Layouts / Nested Views	Optional shared layout container injection
+✅ Shared Services/Utils	Central utility modules (auth, store, http)
+✅ Simple Plugin System (optional)	Hook into route load lifecycle
+✅ Nested Routing Support (optional)	Support /admin/users/:id style nesting
+✅ Scoped Action Prefixes	Prevent action collision in deeply nested UIs
+````
+
 ## 🧩 Routing
 routes.js
 ````
@@ -252,3 +298,29 @@ npm run dev
 📖 Documentation
 See full docs at: comingsoon.dev (Coming soon)
 ````
+
+
+
+# FUTURE ROAD
+
+| Feature                                        | Description                                     |
+| ---------------------------------------------- | ----------------------------------------------- |
+| ⬜ Auth Guards + Redirects                      | Protect routes with `isLoggedIn()`              |
+| ⬜ Route-Based Code Splitting                   | e.g. preload `pages/dashboard.js` in background |
+| ⬜ Component Registry / Factory                 | Dynamically register and attach UI components   |
+| ⬜ Virtual DOM (tiny layer)                     | Avoid re-renders or dom-diff heavy views        |
+| ⬜ Mini Store (state manager)                   | Share global state across pages                 |
+| ⬜ Configurable `preload()` / `cleanup()` hooks | Control lifecycle cleanups                      |
+
+🧩 More to come
+🔀 Route Transition Animations: fade, slide between views
+
+🔌 Hot Module Override Support (in dev): reload only current view
+
+🌐 Built-in i18n Utility: Replace strings from JSON
+
+📦 Single HTML + Multi-Page SPA Feel
+
+🧠 Dev Inspector UI: toggle route/params info in a sidebar
+
+📝 Inline Markdown Rendering: render docs/blog from .md
