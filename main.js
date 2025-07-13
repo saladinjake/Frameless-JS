@@ -1,9 +1,40 @@
 const app = document.getElementById('app');
+async function checkLoginStatus(boolVal) {
+  // toggle
+  return boolVal;
+}
 const routes = [
   {
     path: 'home',
     view: './example/Views/home.html',
     onLoad: () => console.log('Home loaded'),
+  },
+  {
+    path: 'login',
+    view: './example/Views/login.html',
+    onLoad: () => console.log('Login loaded'),
+  },
+  {
+    path: 'profile',
+    view: './example/Views/profile.html',
+    onLoad: () => console.log('Profile loaded'),
+    middleware: async (params) => {
+      // midleware by params value
+      console.log(params, '>>>>');
+      if (params?.user) {
+        if (params.user != 'banned') return true;
+        return false;
+      }
+
+      // meddle ware by function call
+      const toggleTestValue = false;
+      const user = await checkLoginStatus(toggleTestValue);
+      if (!user) {
+        location.hash = '#login';
+        return false;
+      }
+      return true;
+    },
   },
   {
     path: 'about',
@@ -13,7 +44,7 @@ const routes = [
       return true; // must return true to continue
     },
     onLoad: () => console.log('About page is now visible'),
-    // script: 'example/pages/about.js',
+    script: 'example/pages/about.js',
   },
   {
     path: 'contact',
@@ -46,6 +77,14 @@ function bindActions(actionHandlers = {}) {
 }
 
 async function loadPage(route, params = {}) {
+  //  Run middleware
+  if (route.middleware) {
+    const result = await route.middleware(params);
+    if (!result) {
+      app.innerHTML = `<p>Access denied by middleware.</p>`;
+      return;
+    }
+  }
   try {
     const res = await fetch(route.view);
     const htmlText = await res.text();
@@ -70,9 +109,8 @@ async function loadPage(route, params = {}) {
       document.body.appendChild(newScript);
     });
 
-    route?.onLoad?.();
-
     if (route.script) {
+      // import our functional component class and bind action handlers to templates
       const module = await import(`/${route.script}?t=${Date.now()}`);
       if (typeof module.init === 'function') {
         const actionHandlers = module.init(params);
@@ -81,6 +119,9 @@ async function loadPage(route, params = {}) {
         }
       }
     }
+
+    // route on load before script executiom
+    route?.onLoad?.();
   } catch (err) {
     console.error(err);
     app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
