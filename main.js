@@ -84,7 +84,6 @@ function bindActions(actionHandlers = {}) {
     });
   });
 }
-
 function matchRoute(path) {
   for (const route of routes) {
     // 🔹 Exact static match
