@@ -1,8 +1,25 @@
 <h1>About Page</h1>
 <p>This is the about page loaded dynamically.</p>
 <p>Event binding in Frameless</p>
+<!--multi slot test-->
+<template slot="header">
+  <h2>About Header</h2>
+</template>
+
+<section>
+  <h3 id="title">About Main</h3>
+  <div id="some_about_id"></div>
+</section>
+
+<template slot="sidebar">
+  <p>Side stuff for About</p>
+</template>
+
+
 <button data-action="sayHello" data-name="Victor">Click</button>
 <script>
   console.log("About page JS executed");
   document.body.style.background = "#eef";
 </script>
+
+

@@ -16,16 +16,26 @@ export const routes = [
     view: './example/Views/home.html',
     onLoad: () => console.log('Home loaded'),
     layout: './example/layouts/default.html',
+    script: ['example/pages/index.js'], // accepts array of string
+  },
+  {
+    path: 'index',
+    view: './example/Views/home.html',
+    onLoad: () => console.log('Home loaded'),
+    layout: './example/layouts/default.html',
+    script: ['example/pages/index.js'], // accepts array of string
   },
   {
     path: 'login',
     view: './example/Views/login.html',
     onLoad: () => console.log('Login loaded'),
+    layout: './example/layouts/default.html',
   },
   {
     path: 'profile/:id', // /^profile\/(\d+)$/,
     view: './example/Views/profile.html',
     onLoad: () => console.log('Profile loaded'),
+    layout: './example/layouts/default.html',
     middleware: async (params) => {
       // midleware by params value
       console.log(params, '>>>>');
@@ -58,6 +68,7 @@ export const routes = [
   {
     path: 'contact',
     view: './example/Views/contact.html',
+    layout: './example/layouts/default.html',
     middleware: () => {
       console.log('Checking something before showing contact');
       return confirm('Do you really want to view the contact page?');
@@ -69,6 +80,7 @@ export const routes = [
     path: 'dashboard',
     view: './example/Views/dashboard.html',
     script: 'example/pages/dashboard.js',
+    layout: './example/layouts/dashboard.html',
     // todo add route beforeEnter and beforeLeave
     // beforeEnter: (params) => {
     //   if (!checkLoginStatus(false)) {

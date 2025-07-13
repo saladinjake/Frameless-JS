@@ -104,6 +104,34 @@ function hideLoader() {
   if (loader) loader.style.display = 'none';
 }
 
+// Slot Injection + Action Binding
+function htmlToDOM(str) {
+  const temp = document.createElement('div');
+  temp.innerHTML = str;
+  return temp;
+}
+
+function injectSlots(layout, view) {
+  // Replace default slot
+  const mainSlot = layout.querySelector('slot');
+  if (mainSlot) {
+    mainSlot.replaceWith(...view.children);
+  }
+
+  // Named slots
+
+  layout.querySelectorAll('slot[name]').forEach((slot) => {
+    if (slot) {
+      const name = slot.getAttribute('name');
+      const template = view.querySelector(`template[slot="${name}"]`);
+      if (template) {
+        const frag = template.content.cloneNode(true);
+        slot.replaceWith(frag);
+      }
+    }
+  });
+}
+
 async function loadPage(route, params = {}, match = null) {
   //  Run middleware
   if (route.middleware) {
@@ -128,6 +156,7 @@ async function loadPage(route, params = {}, match = null) {
     const res = await fetch(route.view);
     const htmlText = await res.text();
 
+    // to track previous dom
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, 'text/html');
     const content = doc.body;
@@ -139,28 +168,40 @@ async function loadPage(route, params = {}, match = null) {
     //   );
     // });
 
-    const temp = document.createElement('div');
-    temp.innerHTML = htmlText;
+    // element to html dom
+    // const temp = document.createElement('div');
+    // temp.innerHTML = htmlText;
+    //   let finalHTML = temp;
+    //
+    const viewDOM = htmlToDOM(htmlText);
 
-    let finalHTML = temp;
+    let finalDOM = viewDOM;
     if (route.layout) {
+      // for single slot
+      //   const layoutRes = await fetch(route.layout);
+      //   const layoutHTML = await layoutRes.text();
+
+      //   const layoutDOM = document.createElement('div');
+      //   layoutDOM.innerHTML = layoutHTML;
+
+      //   const slot = layoutDOM.querySelector('slot');
+      //   if (slot) {
+      //     slot.replaceWith(...temp.children);
+      //   }
+
+      //   finalHTML = layoutDOM;
+
       const layoutRes = await fetch(route.layout);
       const layoutHTML = await layoutRes.text();
+      const layoutDOM = htmlToDOM(layoutHTML);
 
-      const layoutDOM = document.createElement('div');
-      layoutDOM.innerHTML = layoutHTML;
-
-      const slot = layoutDOM.querySelector('slot');
-      if (slot) {
-        slot.replaceWith(...temp.children);
-      }
-
-      finalHTML = layoutDOM;
+      injectSlots(layoutDOM, viewDOM);
+      finalDOM = layoutDOM;
     }
 
     app.innerHTML = '';
     requestAnimationFrame(() => {
-      [...finalHTML.children].forEach((el) =>
+      [...finalDOM.children].forEach((el) =>
         app.appendChild(el.cloneNode(true)),
       );
     });

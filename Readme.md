@@ -54,6 +54,12 @@ export function init(params) {
 ✅ All works with lifecycle (onMount)
 ✅ Layouts are fully dynamic HTML, not hardcoded
 
+ Nested Layouts with <slot> injection	
+✅ Named Slots (<slot name="sidebar">)	
+✅ Scoped DOM Access via useDomRefs() and $() like jquery	
+✅ Optional Global State via useStore()	
+
+
 <div class="layout">
   <header><h1>App Header</h1></header>
   <main><slot></slot></main>
@@ -69,6 +75,14 @@ export function init(params) {
 ### 🌍 SSR-friendly (static views, hydration-ready)
 
 ### 🚀 Zero-dependency + Vite-ready
+
+### Extras
+✅ Lifecycle Hooks 
+✅ Dynamic Route Params	
+✅ Middleware Support	
+✅ Programmatic Navigation	
+✅ Fancy Loading Animation
+
 
 # 🚀 Quick Start
 ````
