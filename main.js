@@ -36,6 +36,7 @@ const routes = [
       }
       return true;
     },
+    script: ['example/pages/about.js'], // accepts array of string
   },
   {
     path: 'about',
@@ -78,7 +79,7 @@ function bindActions(actionHandlers = {}) {
   });
 }
 
-const runScriptModule = async (scriptPath) => {
+const runScriptModule = async (scriptPath, params) => {
   const module = await import(`./${scriptPath}?t=${Date.now()}`);
   if (typeof module.init === 'function') {
     const actions = module.init(params);
@@ -134,13 +135,22 @@ async function loadPage(route, params = {}) {
     }
 
     // ✅ Import scoped JS for this route
-
-    if (route.scripts) {
-      for (const scriptPath of route.scripts) {
-        await runScriptModule(scriptPath);
+    if (route.script && typeof route.script == 'string') {
+      const module = await import(`./${route.script}?t=${Date.now()}`);
+      if (typeof module.init === 'function') {
+        const actions = module.init(params);
+        if (typeof actions === 'object') {
+          bindActions(actions);
+        }
       }
-    } else if (route.script) {
-      await runScriptModule(route.script);
+    } else if (Array.isArray(route.script)) {
+      if (route.scripts) {
+        for (const scriptPath of route.scripts) {
+          await runScriptModule(scriptPath, params);
+        }
+      } else if (route.script) {
+        await runScriptModule(route.script, params);
+      }
     }
 
     // route on load before script executiom
