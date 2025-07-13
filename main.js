@@ -1,5 +1,6 @@
 const app = document.getElementById('app');
 const loadedScriptSrcs = new Set();
+const DEFAULT_ROUTE = 'index';
 async function checkLoginStatus(boolVal) {
   // toggle
   return boolVal;
@@ -153,16 +154,28 @@ const runScriptModule = async (scriptPath, params) => {
   }
 };
 
+function showLoader() {
+  const loader = document.getElementById('loader');
+  if (loader) loader.style.display = 'flex';
+}
+
+function hideLoader() {
+  const loader = document.getElementById('loader');
+  if (loader) loader.style.display = 'none';
+}
+
 async function loadPage(route, params = {}, match = null) {
   //  Run middleware
   if (route.middleware) {
     const result = await route.middleware(params);
     if (!result) {
       app.innerHTML = `<p>Access denied by middleware.</p>`;
+      hideLoader();
       return;
     }
   }
   try {
+    showLoader();
     app.classList.remove('fade-in');
 
     const res = await fetch(route.view);
@@ -229,11 +242,21 @@ async function loadPage(route, params = {}, match = null) {
   } catch (err) {
     console.error(err);
     app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
+  } finally {
+    hideLoader();
   }
 }
 
-function handleHashChange() {
-  const { path, params: queryParams } = getRouteAndParams();
+function handleRoute() {
+  const { path, params } = getRouteAndParams();
+
+  const queryParams = params.queryParams;
+  if (!path || path.trim() === '') {
+    const newPath = DEFAULT_ROUTE;
+    location.hash = `#${newPath}`;
+    return;
+  }
+
   const matched = matchRoute(path);
 
   if (matched) {
@@ -241,8 +264,12 @@ function handleHashChange() {
     const combinedParams = { ...queryParams, ...pathParams };
     loadPage(route, combinedParams, match);
   } else {
-    app.innerHTML = `<h2>404 - Not Found</h2>`;
+    this.app.innerHTML = `<h2>404 - Not Found</h2>`;
   }
+}
+
+function handleHashChange() {
+  handleRoute();
 }
 
 window.addEventListener('hashchange', handleHashChange);
