@@ -66,18 +66,18 @@ const routes = [
   },
 
   /// test life cycle
-  {
-    path: 'dashboard',
-    view: 'views/dashboard.html',
-    // script: 'pages/dashboard.js',
-    beforeEnter: (params) => {
-      if (!checkLoginStatus(false)) {
-        navigate('login');
-        return false;
-      }
-      return true;
-    },
-  },
+  //   {
+  //     path: 'dashboard',
+  //     view: 'views/dashboard.html',
+  //     // script: 'pages/dashboard.js',
+  //     beforeEnter: (params) => {
+  //       if (!checkLoginStatus(false)) {
+  //         navigate('login');
+  //         return false;
+  //       }
+  //       return true;
+  //     },
+  //   },
   {
     path: '*',
     view: './example/Views/404.html',
@@ -195,7 +195,12 @@ async function loadPage(route, params = {}, match = null) {
     }
   }
 
-  if (typeof currentDestroy === 'function') currentDestroy();
+  // Call previous onDestroy if exists
+  try {
+    if (typeof currentDestroy === 'function') currentDestroy();
+  } catch (err) {
+    console.warn('[Frameless] Error in onDestroy():', err);
+  }
   try {
     showLoader();
     app.classList.remove('fade-in');
@@ -248,12 +253,39 @@ async function loadPage(route, params = {}, match = null) {
         // if (typeof actions === 'object') {
         // //   bindActions(actions);
         // }
+
+        // actions and lifecycles are grouped to gether in the return object of our frmaeless functional component
+        const actions = module.init(params) || {};
+
+        // before enter
+        // Handle beforeEnter
+        if (typeof actions.beforeEnter === 'function') {
+          try {
+            const allowed = actions.beforeEnter(allParams);
+            if (!allowed) {
+              app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
+              hideLoader();
+              return;
+            }
+          } catch (err) {
+            console.warn('[Frameless] Error in beforeEnter():', err);
+          }
+        }
+
         requestAnimationFrame(() => {
-          const actions = module.init(params);
           if (typeof actions === 'object') {
             bindActions(actions);
-            if (typeof actions.onMount === 'function') actions?.onMount();
-            currentDestroy = actions.onDestroy || null;
+            if (typeof actions.onMount === 'function') {
+              try {
+                actions.onMount(params);
+              } catch (err) {
+                console.warn('[MiniSPA] Error in onMount():', err);
+              }
+            }
+            currentDestroy =
+              typeof actions.onDestroy === 'function'
+                ? actions.onDestroy
+                : null;
           }
         });
       }
