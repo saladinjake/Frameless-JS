@@ -46,6 +46,22 @@ export function init(params) {
 
 ### 🧱 Layout engine with multi-slot support (<slot name="...">)
 
+````
+✅ Optional layout per route
+✅ <slot> support like React
+✅ useRefs() for cleaner DOM access
+✅ $() helper like jQuery but scoped
+✅ All works with lifecycle (onMount)
+✅ Layouts are fully dynamic HTML, not hardcoded
+
+<div class="layout">
+  <header><h1>App Header</h1></header>
+  <main><slot></slot></main>
+  <footer><small>© 2025</small></footer>
+</div>
+
+````
+
 ### 🎯 Router link (<a router-link href="/dashboard">)
 
 ### 🌈 Transitions + Suspense support
