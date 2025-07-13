@@ -3,7 +3,7 @@ const app = document.getElementById('app');
 const routes = {
   home: './example/home.html',
   about: './example/about.html',
-  contact: './example/contact.html'
+  contact: './example/contact.html',
 };
 
 async function loadPage(page) {
