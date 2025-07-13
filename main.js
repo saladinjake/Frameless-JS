@@ -87,6 +87,8 @@ async function loadPage(route, params = {}) {
     }
   }
   try {
+    app.classList.remove('fade-in');
+
     const res = await fetch(route.view);
     const htmlText = await res.text();
 
@@ -135,6 +137,8 @@ async function loadPage(route, params = {}) {
 
     // route on load before script executiom
     route?.onLoad?.();
+    // Add transition
+    requestAnimationFrame(() => app.classList.add('fade-in'));
   } catch (err) {
     console.error(err);
     app.innerHTML = `<h2>Error loading ${route.view}</h2>`;

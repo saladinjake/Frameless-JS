@@ -6,7 +6,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Code </title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-
+  <style>
+    #layout {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header, footer {
+      background: #222;
+      color: white;
+      padding: 1rem;
+    }
+    main {
+      flex: 1;
+      padding: 1rem;
+      opacity: 0;
+      transition: opacity 3.8s ease;
+    }
+    main.fade-in {
+      opacity: 1;
+    }
+  </style>
 </head>
 
 <body id="layout" class="bg-light text-md font-base text-primary">
