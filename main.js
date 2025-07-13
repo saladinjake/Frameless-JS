@@ -85,48 +85,61 @@ function bindActions(actionHandlers = {}) {
   });
 }
 function matchRoute(path) {
-  for (const route of routes) {
-    // 🔹 Exact static match
-    if (typeof route.path === 'string' && !route.path.includes(':')) {
-      if (route.path === path) return { route, match: null, params: {} };
-    }
+  const tryMatch = (tryPath) => {
+    for (const route of this.routes) {
+      // Static exact match
+      if (typeof route.path === 'string' && route.path === tryPath) {
+        return { route, match: null, params: {} };
+      }
 
-    // 🔹 Dynamic string match like 'user/:id'
-    if (typeof route.path === 'string' && route.path.includes(':')) {
-      const paramNames = [];
-      const regexStr = route.path
-        .split('/')
-        .map((part) => {
-          if (part.startsWith(':')) {
-            paramNames.push(part.slice(1));
-            return '([^/]+)';
-          }
-          return part;
-        })
-        .join('/');
+      // Dynamic pattern match: /user/:id
+      if (typeof route.path === 'string' && route.path.includes(':')) {
+        const paramNames = [];
+        const regexStr = route.path
+          .split('/')
+          .map((part) => {
+            if (part.startsWith(':')) {
+              paramNames.push(part.slice(1));
+              return '([^/]+)';
+            }
+            return part;
+          })
+          .join('/');
+        const regex = new RegExp(`^${regexStr}$`);
+        const match = tryPath.match(regex);
+        if (match) {
+          const params = Object.fromEntries(
+            paramNames.map((key, i) => [key, match[i + 1]]),
+          );
+          return { route, match, params };
+        }
+      }
 
-      const regex = new RegExp(`^${regexStr}$`);
-      const match = path.match(regex);
-
-      if (match) {
-        const params = Object.fromEntries(
-          paramNames.map((key, i) => [key, match[i + 1]]),
-        );
-        return { route, match, params };
+      // RegExp route
+      if (route.path instanceof RegExp) {
+        const match = tryPath.match(route.path);
+        if (match) return { route, match, params: {} };
       }
     }
 
-    // 🔹 RegExp fallback
-    if (route.path instanceof RegExp) {
-      const match = path.match(route.path);
-      if (match) {
-        return { route, match, params: {} };
-      }
+    return null;
+  };
+
+  // Try the direct path first
+  let result = tryMatch(path);
+  if (result) return result;
+
+  // Handle fallback to index/home if ends with slash
+  if (path.endsWith('/')) {
+    const fallbackPaths = [`${path}index`, `${path}home`];
+    for (const fallbackPath of fallbackPaths) {
+      result = tryMatch(fallbackPath);
+      if (result) return result;
     }
   }
 
-  // Final fallback: wildcard "*"
-  const fallback = routes.find((r) => r.path === '*');
+  // Fallback route `*`
+  const fallback = this.routes.find((r) => r.path === '*');
   if (fallback) return { route: fallback, match: null, params: {} };
 
   return null;
