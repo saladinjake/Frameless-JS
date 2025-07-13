@@ -6,27 +6,27 @@ Perfect for building fast, modern single-page applications using just native Jav
 # 📦 Features
 ⚙️ SPA router with dynamic loading of HTML + JS
 
-## ✨ Component system , without Xml related markup or need for a VDOM
+### ✨ Component system , without Xml related markup or need for a VDOM
 
-## 🔄 init() or defineComponent() with lifecycle hooks: onMount, onDestroy, beforeEnter
+### 🔄 init() or defineComponent() with lifecycle hooks: onMount, onDestroy, beforeEnter
 
-## 🧠 Context API with provide(), inject() and provideGlobal()
+### 🧠 Context API with provide(), inject() and provideGlobal()
 
-## ⚡️ useState, useEffect, useRef, useSignal – built-in hooks
+### ⚡️ useKeep, useWatcher, useRef, useSignal + More built-in hooks
 
-## 🔌 Plugin system (app.use(...))
+### 🔌 Plugin system (app.use(...))
 
-## 🔐 Middleware/guards on routes
+### 🔐 Middleware/guards on routes
 
-## 🧱 Layout engine with multi-slot support (<slot name="...">)
+### 🧱 Layout engine with multi-slot support (<slot name="...">)
 
-## 🎯 Router link (<a router-link href="/dashboard">)
+### 🎯 Router link (<a router-link href="/dashboard">)
 
-## 🌈 Transitions + Suspense support
+### 🌈 Transitions + Suspense support
 
-## 🌍 SSR-friendly (static views, hydration-ready)
+### 🌍 SSR-friendly (static views, hydration-ready)
 
-## 🚀 Zero-dependency + Vite-ready
+### 🚀 Zero-dependency + Vite-ready
 
 # 🚀 Quick Start
 ````
@@ -36,7 +36,7 @@ npm install
 npm run dev
 ````
 
-##  📁 Folder Structure
+###  📁 Folder Structure
 ````
 my-app/
 ├── index.html
@@ -72,7 +72,7 @@ my-app/
     └── utils/
 ````
 
-## MVP FEATURES
+### MVP FEATURES
 
 ````
 ⚙️ Core Routing & Page Features
@@ -118,7 +118,7 @@ Feature	Description
 ✅ Scoped Action Prefixes	Prevent action collision in deeply nested UIs
 ````
 
-## 🧩 Routing
+### 🧩 Routing
 routes.js
 ````
 
@@ -153,7 +153,7 @@ export const routes = [
 ];
 ````
 
-## ⚙️ Page: Home.js
+### ⚙️ Page: Home.js
 
 
 ````
@@ -178,7 +178,7 @@ export const Home = defineComponent(({ props }) => {
 
 ````
 
-## 🧠 Context API
+### 🧠 Context API
 ````
 In root:
 provideGlobal('auth', {
@@ -193,7 +193,7 @@ auth.login();
 
 ````
 
-## 🔄 Lifecycle Hooks
+### 🔄 Lifecycle Hooks
 
 ````
 export const Page = defineComponent(() => {
@@ -207,7 +207,7 @@ export const Page = defineComponent(() => {
 
 ````
 
-## 🪝 Built-in Hooks
+### 🪝 Built-in Hooks
 ```` 
 Hook	Description
 useKeep()	 state house with reactivity
@@ -218,7 +218,7 @@ useStore()  stateManagement
 ...more
 ````
 
-## 🧱 Layouts with Slots
+### 🧱 Layouts with Slots
 ````
 layouts/MainLayout.html
 <header>Main Header</header>
@@ -229,7 +229,7 @@ layouts/MainLayout.html
 Automatically used if layout: 'MainLayout.html' is set in route.
 ````
 
-## 🔌 Plugin System
+### 🔌 Plugin System
 ````
 export default function LoggerPlugin(app) {
   app.provideGlobal('logger', {
@@ -243,21 +243,21 @@ import LoggerPlugin from './plugins/logger.js';
 app.use(LoggerPlugin);
 ````
 
-## 🛠 router-link Navigation
+### 🛠 router-link Navigation
 
 
 <a href="/about" router-link>Go to About</a>
 Supports SPA navigation with history API.
 ````
 
-## 🌈 Transition Support
+### 🌈 Transition Support
 ````
 #app.fade-in { animation: fadeIn 0.3s ease-in; }
 #app.fade-out { animation: fadeOut 0.3s ease-out; }
 Built-in support for basic transitions between pages.
 ````
 
-## 📦 Vite + Build Setup
+### 📦 Vite + Build Setup
 ````
 // vite.config.js
 export default {
@@ -276,7 +276,7 @@ export const Card = defineComponent(({ title, description }) => `
 `);
 
 ````
-## ⚡️ Future Roadmap
+### ⚡️ Future Roadmap
 - SSR support with hydration
 - Static site generator (frameless export)
 - DevTools Extension
@@ -285,11 +285,11 @@ export const Card = defineComponent(({ title, description }) => `
 - CLI plugin registry
 - Native mobile output with Capacitor
 
-## 🧠 Philosophy
+### 🧠 Philosophy
 - No Virtual DOM. No massive runtime.
 - Just components, routing, lifecycle, and performance — all using native browser power.
 
-## 🛠 How to Contribute
+### 🛠 How to Contribute
 ````
 git clone https://github.com/saladinjake/Frameles-JS.git
 cd frameless-app
