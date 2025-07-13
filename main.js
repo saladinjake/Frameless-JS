@@ -264,7 +264,7 @@ async function loadPage(route, params = {}, match = null) {
             bindActions(actions);
             if (typeof actions.onMount === 'function') {
               try {
-                actions.onMount(params);
+                requestAnimationFrame(() => actions.onMount(params));
               } catch (err) {
                 console.warn('[MiniSPA] Error in onMount():', err);
               }

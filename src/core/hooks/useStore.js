@@ -1,14 +1,27 @@
-const store = new Map();
+import { createSignal } from './useSignals';
+// const stores = {};
+const storeRegistry = new Map();
+export function useStore(key, initialValue) {
+  // if (!stores[key]) {
+  //   let state = { ...initial };
+  //   const listeners = new Set();
+  //   stores[key] = {
+  //     get: () => state,
+  //     set: (newVal) => {
+  //       state = { ...state, ...newVal };
+  //       listeners.forEach((fn) => fn());
+  //     },
+  //     subscribe: (fn) => {
+  //       listeners.add(fn);
+  //       return () => listeners.delete(fn);
+  //     },
+  //   };
+  // }
+  // const store = stores[key];
+  // return [store.get, store.set, store.subscribe];
 
-export function useStore(key, defaultValue = {}) {
-  if (!store.has(key)) {
-    store.set(key, { ...defaultValue });
+  if (!storeRegistry.has(key)) {
+    storeRegistry.set(key, createSignal(initialValue));
   }
-
-  const get = () => store.get(key);
-  const set = (value) => {
-    store.set(key, { ...store.get(key), ...value });
-  };
-
-  return [get, set];
+  return storeRegistry.get(key); // returns [get, set, subscribe]
 }

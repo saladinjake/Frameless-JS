@@ -15,8 +15,8 @@ export const routes = [
     path: 'home',
     view: './example/Views/home.html',
     onLoad: () => console.log('Home loaded'),
-    layout: './example/layouts/default.html',
-    script: ['example/pages/index.js'], // accepts array of string
+    // layout: './example/layouts/default.html',
+    script: ['example/pages/home.js'], // accepts array of string
   },
   {
     path: 'index',

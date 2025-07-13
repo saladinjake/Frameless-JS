@@ -18,7 +18,15 @@ export function init(params) {
     },
 
     onMount() {
-      console.log('About page loaded.');
+      requestAnimationFrame(() => {
+        console.log('About page loaded.');
+        const el = document.getElementById('some_about_id');
+        if (el) {
+          const p = document.createElement('p');
+          p.textContent = `Welcome, ${params.user || 'Guest'}!`;
+          el.appendChild(p);
+        }
+      });
     },
     onDestroy() {
       console.log('About page cleanup.');
