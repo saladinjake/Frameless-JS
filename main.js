@@ -135,7 +135,10 @@ async function loadPage(route, params = {}) {
     }
 
     // ✅ Import scoped JS for this route
-    if (route.script && typeof route.script == 'string') {
+    if (
+      (route.script && typeof route.script == 'string') ||
+      (route.scripts && typeof route.scripts == 'string')
+    ) {
       const module = await import(`./${route.script}?t=${Date.now()}`);
       if (typeof module.init === 'function') {
         const actions = module.init(params);
@@ -143,7 +146,7 @@ async function loadPage(route, params = {}) {
           bindActions(actions);
         }
       }
-    } else if (Array.isArray(route.script)) {
+    } else if (Array.isArray(route.script) || Array.isArray(route.scripts)) {
       if (route.scripts) {
         for (const scriptPath of route.scripts) {
           await runScriptModule(scriptPath, params);
