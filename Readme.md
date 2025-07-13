@@ -8,7 +8,15 @@ Perfect for building fast, modern single-page applications using just native Jav
 
 ### ✨ Component system , without Xml related markup or need for a VDOM
 
-### 🔄 init() or defineComponent() with lifecycle hooks: onMount, onDestroy, beforeEnter
+### 🔄 init() or defineComponent() 
+
+### ✅ Full Lifecycle Flow
+````
+Phase	Hook	When it runs with lifecycle hooks: onMount, onDestroy, beforeEnter
+Before inject	onDestroy()	Clean up old page (event listeners, etc)
+After inject	onMount()	DOM is injected and visible
+During usage	data-action	Bound actions like submitForm()`
+````
 
 ### 🧠 Context API with provide(), inject() and provideGlobal()
 
