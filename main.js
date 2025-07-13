@@ -60,7 +60,7 @@ const routes = [
   {
     path: '*',
     view: './example/Views/404.html',
-    script: 'pages/404.js',
+    script: 'example/pages/404.js',
   },
 ];
 
