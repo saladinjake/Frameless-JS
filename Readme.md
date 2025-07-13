@@ -49,7 +49,7 @@ export function init(params) {
 ````
 ✅ Optional layout per route
 ✅ <slot> support like React
-✅ useRefs() for cleaner DOM access
+✅ useDomRefs() for cleaner DOM access
 ✅ $() helper like jQuery but scoped
 ✅ All works with lifecycle (onMount)
 ✅ Layouts are fully dynamic HTML, not hardcoded
