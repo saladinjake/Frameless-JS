@@ -9,6 +9,7 @@ const routes = [
     path: 'home',
     view: './example/home.html',
     onLoad: () => console.log('Home loaded'),
+    script: 'pages/home.js',
   },
   {
     path: 'about',
@@ -28,6 +29,15 @@ const routes = [
     },
   },
 ];
+
+// Optional: parse params like #about?user=vic
+function getRouteAndParams() {
+  const [hashPath, queryString = ''] = location.hash
+    .replace('#', '')
+    .split('?');
+  const params = Object.fromEntries(new URLSearchParams(queryString));
+  return { path: hashPath || 'home', params };
+}
 
 function loadScriptElements(fragment) {
   const scripts = fragment.querySelectorAll('script');
@@ -64,6 +74,15 @@ async function loadPage(route) {
 
     loadScriptElements(content); // re-run embedded scripts
 
+    // if external script exist in route object
+    if (route.script) {
+      const module = await import(`${route.script}?t=${Date.now()}`); // cache-bust
+      if (module?.init) {
+        module.init(params); // pass params like { user: "vic" }
+      }
+    }
+
+    // if onLoad option in route ..
     route.onLoad?.();
   } catch (err) {
     app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
