@@ -1,4 +1,4 @@
-# Frameless.js – A Native, Component-First SPA Micro Framework
+# Frameless.js – AProgressive Native, Component-First SPA Micro Framework
 
 - ⚡️ Lightweight. 💡 Flexible. 🧩 Component-based. 🚫 No virtual DOM.
 Perfect for building fast, modern single-page applications using just native JavaScript + HTML.
