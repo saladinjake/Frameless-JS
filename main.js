@@ -53,7 +53,7 @@ function loadScriptElements(fragment) {
   });
 }
 
-async function loadPage(route) {
+async function loadPage(route, params = {}) {
   if (route.middleware && !route.middleware()) {
     app.innerHTML = `<p>Access denied or cancelled.</p>`;
     return;
