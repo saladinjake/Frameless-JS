@@ -16,7 +16,7 @@ const routes = [
     onLoad: () => console.log('Login loaded'),
   },
   {
-    path: 'profile',
+    path: 'profile/:id', // /^profile\/(\d+)$/,
     view: './example/Views/profile.html',
     onLoad: () => console.log('Profile loaded'),
     middleware: async (params) => {
@@ -56,6 +56,12 @@ const routes = [
       return confirm('Do you really want to view the contact page?');
     },
   },
+
+  {
+    path: '*',
+    view: './example/Views/404.html',
+    script: 'pages/404.js',
+  },
 ];
 
 function getRouteAndParams() {
@@ -79,6 +85,54 @@ function bindActions(actionHandlers = {}) {
   });
 }
 
+function matchRoute(path) {
+  for (const route of routes) {
+    // 🔹 Exact static match
+    if (typeof route.path === 'string' && !route.path.includes(':')) {
+      if (route.path === path) return { route, match: null, params: {} };
+    }
+
+    // 🔹 Dynamic string match like 'user/:id'
+    if (typeof route.path === 'string' && route.path.includes(':')) {
+      const paramNames = [];
+      const regexStr = route.path
+        .split('/')
+        .map((part) => {
+          if (part.startsWith(':')) {
+            paramNames.push(part.slice(1));
+            return '([^/]+)';
+          }
+          return part;
+        })
+        .join('/');
+
+      const regex = new RegExp(`^${regexStr}$`);
+      const match = path.match(regex);
+
+      if (match) {
+        const params = Object.fromEntries(
+          paramNames.map((key, i) => [key, match[i + 1]]),
+        );
+        return { route, match, params };
+      }
+    }
+
+    // 🔹 RegExp fallback
+    if (route.path instanceof RegExp) {
+      const match = path.match(route.path);
+      if (match) {
+        return { route, match, params: {} };
+      }
+    }
+  }
+
+  // Final fallback: wildcard "*"
+  const fallback = routes.find((r) => r.path === '*');
+  if (fallback) return { route: fallback, match: null, params: {} };
+
+  return null;
+}
+
 const runScriptModule = async (scriptPath, params) => {
   const module = await import(`./${scriptPath}?t=${Date.now()}`);
   if (typeof module.init === 'function') {
@@ -87,7 +141,7 @@ const runScriptModule = async (scriptPath, params) => {
   }
 };
 
-async function loadPage(route, params = {}) {
+async function loadPage(route, params = {}, match = null) {
   //  Run middleware
   if (route.middleware) {
     const result = await route.middleware(params);
@@ -167,10 +221,13 @@ async function loadPage(route, params = {}) {
 }
 
 function handleHashChange() {
-  const { path, params } = getRouteAndParams();
-  const route = routes.find((r) => r.path === path);
-  if (route) {
-    loadPage(route, params);
+  const { path, params: queryParams } = getRouteAndParams();
+  const matched = matchRoute(path);
+
+  if (matched) {
+    const { route, match, params: pathParams } = matched;
+    const combinedParams = { ...queryParams, ...pathParams };
+    loadPage(route, combinedParams, match);
   } else {
     app.innerHTML = `<h2>404 - Not Found</h2>`;
   }
