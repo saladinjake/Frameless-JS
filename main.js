@@ -1,28 +1,23 @@
 const app = document.getElementById('app');
-
-const Config = {
-  fetchOverNetworkFiles: false,
-};
-
 const routes = [
   {
     path: 'home',
-    view: './example/home.html',
+    view: './example/Views/home.html',
     onLoad: () => console.log('Home loaded'),
-    script: 'pages/home.js',
   },
   {
     path: 'about',
-    view: './example/about.html',
+    view: './example/Views/about.html',
     middleware: () => {
       console.log('About middleware ran');
       return true; // must return true to continue
     },
     onLoad: () => console.log('About page is now visible'),
+    // script: 'example/pages/about.js',
   },
   {
     path: 'contact',
-    view: './example/contact.html',
+    view: './example/Views/contact.html',
     middleware: () => {
       console.log('Checking something before showing contact');
       return confirm('Do you really want to view the contact page?');
@@ -30,35 +25,27 @@ const routes = [
   },
 ];
 
-// Optional: parse params like #about?user=vic
 function getRouteAndParams() {
-  const [hashPath, queryString = ''] = location.hash
-    .replace('#', '')
-    .split('?');
-  const params = Object.fromEntries(new URLSearchParams(queryString));
-  return { path: hashPath || 'home', params };
+  const [path = 'home', qs = ''] = location.hash.replace('#', '').split('?');
+  const params = Object.fromEntries(new URLSearchParams(qs));
+  return { path, params };
 }
 
-function loadScriptElements(fragment) {
-  const scripts = fragment.querySelectorAll('script');
-  scripts.forEach((oldScript) => {
-    const newScript = document.createElement('script');
-    if (oldScript.src) {
-      newScript.src = oldScript.src;
-    } else {
-      newScript.textContent = oldScript.textContent;
-    }
-    document.body.appendChild(newScript); // executes immediately
-    oldScript.remove();
+function bindActions(actionHandlers = {}) {
+  const elements = app.querySelectorAll('[data-action]');
+  elements.forEach((el) => {
+    const actionName = el.dataset.action;
+    const handler = actionHandlers[actionName];
+    if (!handler) return;
+
+    el.addEventListener('click', (event) => {
+      const dataset = { ...el.dataset }; // includes data-id, data-name, etc.
+      handler({ event, element: el, dataset });
+    });
   });
 }
 
 async function loadPage(route, params = {}) {
-  if (route.middleware && !route.middleware()) {
-    app.innerHTML = `<p>Access denied or cancelled.</p>`;
-    return;
-  }
-
   try {
     const res = await fetch(route.view);
     const htmlText = await res.text();
@@ -67,26 +54,36 @@ async function loadPage(route, params = {}) {
     const doc = parser.parseFromString(htmlText, 'text/html');
     const content = doc.body;
 
-    app.innerHTML = ''; // clear existing content
+    app.innerHTML = '';
     Array.from(content.children).forEach((child) =>
       app.appendChild(child.cloneNode(true)),
     );
 
-    loadScriptElements(content); // re-run embedded scripts
+    const scripts = content.querySelectorAll('script');
+    scripts.forEach((oldScript) => {
+      const newScript = document.createElement('script');
+      if (oldScript.src) {
+        newScript.src = oldScript.src;
+      } else {
+        newScript.textContent = oldScript.textContent;
+      }
+      document.body.appendChild(newScript);
+    });
 
-    // if external script exist in route object
+    route?.onLoad?.();
+
     if (route.script) {
-      const module = await import(`${route.script}?t=${Date.now()}`); // cache-bust
-      if (module?.init) {
-        module.init(params); // pass params like { user: "vic" }
+      const module = await import(`/${route.script}?t=${Date.now()}`);
+      if (typeof module.init === 'function') {
+        const actionHandlers = module.init(params);
+        if (typeof actionHandlers === 'object') {
+          bindActions(actionHandlers);
+        }
       }
     }
-
-    // if onLoad option in route ..
-    route.onLoad?.();
   } catch (err) {
-    app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
     console.error(err);
+    app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
   }
 }
 
