@@ -1,6 +1,13 @@
 const app = document.getElementById('app');
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'index';
+let currentDestroy = null;
+
+export function navigate(path, query = {}) {
+  const queryStr = new URLSearchParams(query).toString();
+  location.hash = queryStr ? `#${path}?${queryStr}` : `#${path}`;
+}
+
 async function checkLoginStatus(boolVal) {
   // toggle
   return boolVal;
@@ -58,6 +65,19 @@ const routes = [
     },
   },
 
+  /// test life cycle
+  {
+    path: 'dashboard',
+    view: 'views/dashboard.html',
+    // script: 'pages/dashboard.js',
+    beforeEnter: (params) => {
+      if (!checkLoginStatus(false)) {
+        navigate('login');
+        return false;
+      }
+      return true;
+    },
+  },
   {
     path: '*',
     view: './example/Views/404.html',
@@ -174,6 +194,8 @@ async function loadPage(route, params = {}, match = null) {
       return;
     }
   }
+
+  if (typeof currentDestroy === 'function') currentDestroy();
   try {
     showLoader();
     app.classList.remove('fade-in');
@@ -185,10 +207,12 @@ async function loadPage(route, params = {}, match = null) {
     const doc = parser.parseFromString(htmlText, 'text/html');
     const content = doc.body;
 
-    app.innerHTML = '';
-    Array.from(content.children).forEach((child) =>
-      app.appendChild(child.cloneNode(true)),
-    );
+    requestAnimationFrame(() => {
+      app.innerHTML = '';
+      Array.from(content.children).forEach((child) =>
+        app.appendChild(child.cloneNode(true)),
+      );
+    });
 
     // Auto-execute inline and external scripts
     const scripts = content.querySelectorAll('script');
@@ -220,10 +244,18 @@ async function loadPage(route, params = {}, match = null) {
     ) {
       const module = await import(`./${route.script}?t=${Date.now()}`);
       if (typeof module.init === 'function') {
-        const actions = module.init(params);
-        if (typeof actions === 'object') {
-          bindActions(actions);
-        }
+        // const actions = module.init(params);
+        // if (typeof actions === 'object') {
+        // //   bindActions(actions);
+        // }
+        requestAnimationFrame(() => {
+          const actions = module.init(params);
+          if (typeof actions === 'object') {
+            bindActions(actions);
+            if (typeof actions.onMount === 'function') actions?.onMount();
+            currentDestroy = actions.onDestroy || null;
+          }
+        });
       }
     } else if (Array.isArray(route.script) || Array.isArray(route.scripts)) {
       if (route.scripts) {

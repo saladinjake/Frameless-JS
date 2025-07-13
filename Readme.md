@@ -15,7 +15,25 @@ Perfect for building fast, modern single-page applications using just native Jav
 Phase	Hook	When it runs with lifecycle hooks: onMount, onDestroy, beforeEnter
 Before inject	onDestroy()	Clean up old page (event listeners, etc)
 After inject	onMount()	DOM is injected and visible
-During usage	data-action	Bound actions like submitForm()`
+During usage	data-action	Bound actions like submitForm()
+
+export function init(params) {
+  return {
+    viewCourse({ dataset }) {
+      const id = dataset.id;
+      location.hash = `#course/${id}`;
+    },
+
+    onMount() {
+      console.log("Courses view mounted");
+    },
+
+    onDestroy() {
+      console.log("Cleaning up course page");
+    }
+  };
+}
+
 ````
 
 ### 🧠 Context API with provide(), inject() and provideGlobal()
