@@ -66,18 +66,19 @@ const routes = [
   },
 
   /// test life cycle
-  //   {
-  //     path: 'dashboard',
-  //     view: 'views/dashboard.html',
-  //     // script: 'pages/dashboard.js',
-  //     beforeEnter: (params) => {
-  //       if (!checkLoginStatus(false)) {
-  //         navigate('login');
-  //         return false;
-  //       }
-  //       return true;
-  //     },
-  //   },
+  {
+    path: 'dashboard',
+    view: './example/Views/dashboard.html',
+    script: 'example/pages/dashboard.js',
+    // todo add route beforeEnter and beforeLeave
+    // beforeEnter: (params) => {
+    //   if (!checkLoginStatus(false)) {
+    //     navigate('login');
+    //     return false;
+    //   }
+    //   return true;
+    // },
+  },
   {
     path: '*',
     view: './example/Views/404.html',
@@ -242,7 +243,7 @@ async function loadPage(route, params = {}, match = null) {
       document.body.appendChild(newScript);
     }
 
-    // ✅ Import scoped JS for this route
+    // Import scoped JS for this route
     if (
       (route.script && typeof route.script == 'string') ||
       (route.scripts && typeof route.scripts == 'string')
@@ -261,7 +262,7 @@ async function loadPage(route, params = {}, match = null) {
         // Handle beforeEnter
         if (typeof actions.beforeEnter === 'function') {
           try {
-            const allowed = actions.beforeEnter(allParams);
+            const allowed = actions.beforeEnter(params);
             if (!allowed) {
               app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
               hideLoader();
