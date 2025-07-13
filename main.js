@@ -1,4 +1,5 @@
 const app = document.getElementById('app');
+const loadedScriptSrcs = new Set();
 async function checkLoginStatus(boolVal) {
   // toggle
   return boolVal;
@@ -98,24 +99,36 @@ async function loadPage(route, params = {}) {
       app.appendChild(child.cloneNode(true)),
     );
 
+    // Auto-execute inline and external scripts
     const scripts = content.querySelectorAll('script');
-    scripts.forEach((oldScript) => {
+    for (const oldScript of scripts) {
       const newScript = document.createElement('script');
+
+      // External script with deduplication
       if (oldScript.src) {
+        if (loadedScriptSrcs.has(oldScript.src)) continue;
         newScript.src = oldScript.src;
+        loadedScriptSrcs.add(oldScript.src);
       } else {
+        // Inline script
         newScript.textContent = oldScript.textContent;
       }
-      document.body.appendChild(newScript);
-    });
 
+      //  Preserve type (e.g., module)
+      if (oldScript.type) {
+        newScript.type = oldScript.type;
+      }
+
+      document.body.appendChild(newScript);
+    }
+
+    // ✅ Import scoped JS for this route
     if (route.script) {
-      // import our functional component class and bind action handlers to templates
-      const module = await import(`/${route.script}?t=${Date.now()}`);
+      const module = await import(`./${route.script}?t=${Date.now()}`);
       if (typeof module.init === 'function') {
-        const actionHandlers = module.init(params);
-        if (typeof actionHandlers === 'object') {
-          bindActions(actionHandlers);
+        const actions = module.init(params);
+        if (typeof actions === 'object') {
+          bindActions(actions);
         }
       }
     }
