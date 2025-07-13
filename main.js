@@ -86,7 +86,7 @@ function bindActions(actionHandlers = {}) {
 }
 function matchRoute(path) {
   const tryMatch = (tryPath) => {
-    for (const route of this.routes) {
+    for (const route of routes) {
       // Static exact match
       if (typeof route.path === 'string' && route.path === tryPath) {
         return { route, match: null, params: {} };
@@ -139,7 +139,7 @@ function matchRoute(path) {
   }
 
   // Fallback route `*`
-  const fallback = this.routes.find((r) => r.path === '*');
+  const fallback = routes.find((r) => r.path === '*');
   if (fallback) return { route: fallback, match: null, params: {} };
 
   return null;
