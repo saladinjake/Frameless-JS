@@ -58,7 +58,8 @@ const routes = [
 ];
 
 function getRouteAndParams() {
-  const [path = 'home', qs = ''] = location.hash.replace('#', '').split('?');
+  const hash = decodeURIComponent(location.hash.slice(1));
+  const [path = 'home', qs = ''] = hash.split('?');
   const params = Object.fromEntries(new URLSearchParams(qs));
   return { path, params };
 }
@@ -76,6 +77,14 @@ function bindActions(actionHandlers = {}) {
     });
   });
 }
+
+const runScriptModule = async (scriptPath) => {
+  const module = await import(`./${scriptPath}?t=${Date.now()}`);
+  if (typeof module.init === 'function') {
+    const actions = module.init(params);
+    if (typeof actions === 'object') bindActions(actions);
+  }
+};
 
 async function loadPage(route, params = {}) {
   //  Run middleware
@@ -125,14 +134,13 @@ async function loadPage(route, params = {}) {
     }
 
     // ✅ Import scoped JS for this route
-    if (route.script) {
-      const module = await import(`./${route.script}?t=${Date.now()}`);
-      if (typeof module.init === 'function') {
-        const actions = module.init(params);
-        if (typeof actions === 'object') {
-          bindActions(actions);
-        }
+
+    if (route.scripts) {
+      for (const scriptPath of route.scripts) {
+        await runScriptModule(scriptPath);
       }
+    } else if (route.script) {
+      await runScriptModule(route.script);
     }
 
     // route on load before script executiom
