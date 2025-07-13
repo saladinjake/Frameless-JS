@@ -21,13 +21,18 @@ export default class Router {
 
     window.addEventListener('hashchange', () => this.handleRoute());
     window.addEventListener('DOMContentLoaded', () => this.handleRoute());
+    return this
   }
+  navigate(path, params = {}) {
+  const query = new URLSearchParams(params).toString();
+  location.hash = query ? `${path}?${query}` : `${path}`;
+}
 
   getHashParts() {
     const hash = decodeURIComponent(location.hash.slice(1));
-    const [path = 'home', qs = ''] = hash.split('?');
+    const [path = 'index', qs = ''] = hash.split('?');
     const params = Object.fromEntries(new URLSearchParams(qs));
-    return { path, params };
+    return { path : path || defaultRoute, params };
   }
 
   matchRoute(path) {
