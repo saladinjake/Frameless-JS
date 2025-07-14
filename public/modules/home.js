@@ -1,7 +1,7 @@
 // our custom like pure Functional Component
-import { useDomRefs } from '../../src/core/hooks/useDomRefs';
-import { useStore } from '../../src/core/hooks/useStore';
-import { useDomWatch } from '../../src/core/hooks/useDomWatch';
+import { useDomRefs } from '../core/hooks/useDomRefs';
+import { useStore } from '../core/hooks/useStore';
+import { useDomWatch } from '../core/hooks/useDomWatch';
 
 export function init(params) {
   const { refs, $ } = useDomRefs();

@@ -13,23 +13,23 @@ function checkLoginStatus(boolVal) {
 export const routes = [
   {
     path: 'home',
-    view: './example/Views/home.html',
+    view: './views/home.html',
     onLoad: () => console.log('Home loaded'),
-    // layout: './example/layouts/default.html',
-    scripts: ['example/pages/home.js'], // accepts array of string
+    layout: './views/layouts/default.html',
+    scripts: ['./modules/home.js'], // accepts array of string
   },
 
   {
     path: 'login',
-    view: './example/Views/login.html',
+    view: './views/login.html',
     onLoad: () => console.log('Login loaded'),
-    layout: './example/layouts/default.html',
+    layout: './views/layouts/default.html',
   },
   {
     path: 'profile/:id', // /^profile\/(\d+)$/,
-    view: './example/Views/profile.html',
+    view: './views/profile.html',
     onLoad: () => console.log('Profile loaded'),
-    layout: './example/layouts/default.html',
+    layout: './views/layouts/default.html',
     middleware: async (params) => {
       // midleware by params value
       console.log(params, '>>>>');
@@ -47,22 +47,22 @@ export const routes = [
       }
       return true;
     },
-    script: ['example/pages/about.js'], // accepts array of string
+    script: ['./modules/about.js'], // accepts array of string
   },
   {
     path: 'about',
-    view: './example/Views/about.html',
+    view: './views/about.html',
     middleware: () => {
       console.log('About middleware ran');
       return true; // must return true to continue
     },
     onLoad: () => console.log('About page is now visible'),
-    script: 'example/pages/about.js',
+    script: './modules/about.js',
   },
   {
     path: 'contact',
-    view: './example/Views/contact.html',
-    layout: './example/layouts/default.html',
+    view: './views/contact.html',
+    layout: './views/layouts/default.html',
     middleware: () => {
       console.log('Checking something before showing contact');
       return confirm('Do you really want to view the contact page?');
@@ -72,9 +72,9 @@ export const routes = [
   /// test life cycle
   {
     path: 'dashboard',
-    view: './example/Views/dashboard.html',
-    script: 'example/pages/dashboard.js',
-    layout: './example/layouts/dashboard.html',
+    view: './views/dashboard.html',
+    script: './modules/dashboard.js',
+    layout: './views/layouts/dashboard.html',
     // todo add route beforeEnter and beforeLeave
     // beforeEnter: (params) => {
     //   if (!checkLoginStatus(false)) {
@@ -86,7 +86,7 @@ export const routes = [
   },
   {
     path: '*',
-    view: './example/Views/404.html',
-    script: 'example/pages/404.js',
+    view: './views/404.html',
+    script: './modules/404.js',
   },
 ];

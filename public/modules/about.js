@@ -1,8 +1,8 @@
 // our custom like pure Functional Component
-import { bindText } from '../../src/core/bindings';
-import { useSignal } from '../../src/core/hooks/useSignals';
-import { useDomRefs } from '../../src/core/hooks/useDomRefs';
-import { useDomWatch } from '../../src/core/hooks/useDomWatch';
+import { bindText } from '../core/bindings';
+import { useSignal } from '../core/hooks/useSignals';
+import { useDomRefs } from '../core/hooks/useDomRefs';
+import { useDomWatch } from '../core/hooks/useDomWatch';
 
 let unbindText;
 export function init(params) {
