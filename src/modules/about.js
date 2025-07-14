@@ -1,14 +1,19 @@
 // our custom like pure Functional Component
 import { bindText } from '../core/bindings';
-import { useSignal } from '../core/hooks/useSignals';
-import { useDomRefs } from '../core/hooks/useDomRefs';
-import { useDomWatch } from '../core/hooks/useDomWatch';
+
+import {
+  seekDomWatch,
+  peekComputed,
+  peekDomRefs,
+  peekSignal,
+  peekStore,
+} from '../core/hooks/index';
 
 let unbindText;
 export function init(params) {
   console.log('Route params:', params);
-  const { refs, $ } = useDomRefs();
-  const [count, setCount, subscribe] = useSignal(0);
+  const { refs, $ } = peekDomRefs();
+  const [count, setCount, subscribe] = peekSignal(0);
 
   console.log(refs, '<<<');
 

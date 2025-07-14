@@ -1,11 +1,9 @@
 // our custom like pure Functional Component
-import { useDomRefs } from '../core/hooks/useDomRefs';
-import { useStore } from '../core/hooks/useStore';
-import { useDomWatch } from '../core/hooks/useDomWatch';
+import { peekDomRefs, peekStore, seekDomWatch } from '../core/hooks/index';
 
 export function init(params) {
-  const { refs, $ } = useDomRefs();
-  const [getUser, setUser, subscribe] = useStore('user', { name: 'Guest' });
+  const { refs, $ } = peekDomRefs();
+  const [getUser, setUser, subscribe] = peekStore('user', { name: 'Guest' });
 
   console.log(refs, $);
 
@@ -17,13 +15,14 @@ export function init(params) {
 
   console.log(params, '>>>');
   return {
+    template: `
+       <!--free to write html codes -->
+    `,
     onMount() {
       $('#title').textContent = 'Updated!';
-
-      useDomWatch(() => {
+      seekDomWatch(() => {
         refs.welcome.textContent = `Hey there, ${getUser().name}!`;
       }, [{ subscribe }]);
-
       console.log('mounted...');
     },
     onDestroy() {

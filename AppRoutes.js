@@ -4,10 +4,11 @@ function navigate(path, query = {}) {
   const queryStr = new URLSearchParams(query).toString();
   location.hash = queryStr ? `#${path}?${queryStr}` : `#${path}`;
 }
-
+let isAuth = false;
 function checkLoginStatus(boolVal) {
   // toggle
-  return boolVal;
+  isAuth = boolVal;
+  return isAuth;
 }
 
 export const routes = [
@@ -24,6 +25,7 @@ export const routes = [
     view: './views/login.html',
     onLoad: () => console.log('Login loaded'),
     layout: './views/layouts/default.html',
+    scripts: ['./modules/Login/Login.js'], // accepts array of string
   },
   {
     path: 'profile/:id', // /^profile\/(\d+)$/,
@@ -39,7 +41,7 @@ export const routes = [
       }
 
       // meddle ware by function call
-      const toggleTestValue = false;
+      const toggleTestValue = !!params.user;
       const user = await checkLoginStatus(toggleTestValue);
       if (!user) {
         location.hash = '#login';
@@ -52,6 +54,7 @@ export const routes = [
   {
     path: 'about',
     view: './views/about.html',
+    layout: './views/layouts/default.html',
     middleware: () => {
       console.log('About middleware ran');
       return true; // must return true to continue

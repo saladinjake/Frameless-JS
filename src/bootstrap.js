@@ -1,5 +1,6 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
+import { hydrateComponent } from './core/hydrations/hydrateComponent';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
@@ -93,6 +94,10 @@ const runScriptModule = async (scriptPath, params, app) => {
   if (typeof module.init === 'function') {
     const actions = module.init(params) || {};
 
+    const template = actions?.template || null;
+
+   
+
     // before enter
     // Handle beforeEnter
     if (typeof actions.beforeEnter === 'function') {
@@ -119,8 +124,20 @@ const runScriptModule = async (scriptPath, params, app) => {
             console.warn('[MiniSPA] Error in onMount():', err);
           }
         }
+
+        // Store onDestroy for later cleanup
+        currentDestroy = () => {
+          // Call component destroy if exists
+          if (typeof actions.onDestroy === 'function') {
+            actions.onDestroy();
+          }
+          // Clean up rendered template
+          if (hydratedEl && hydratedEl.remove) {
+            hydratedEl.remove();
+          }
+        };
         currentDestroy =
-          typeof actions.onDestroy === 'function' ? actions.onDestroy : null;
+          typeof actions?.onDestroy === 'function' ? actions?.onDestroy : null;
       }
     });
   }
@@ -212,6 +229,7 @@ async function loadPage(app, route, params = {}, match = null) {
         app.appendChild(el.cloneNode(true)),
       );
     });
+    // hydrateComponent(app, {});
 
     // Auto-execute inline and external scripts
     const scripts = content.querySelectorAll('script');
@@ -244,13 +262,38 @@ async function loadPage(app, route, params = {}, match = null) {
       const module = await import(`./${route.script}?t=${Date.now()}`);
       console.log(module, 'cant reach');
       if (typeof module.init === 'function') {
-        // const actions = module.init(params);
-        // if (typeof actions === 'object') {
-        // //   bindActions(actions);
-        // }
-
-        // actions and lifecycles are grouped to gether in the return object of our frmaeless functional component
+        // actions and lifecycles or template strings
+        // are grouped to gether in the return object of our frmaeless functional component
         const actions = module.init(params) || {};
+        const template = actions?.template || null;
+
+        let hydratedEl = null;
+
+        if (template) {
+          // Convert string template to DOM
+          const container = document.createElement('div');
+          container.innerHTML = template;
+          hydratedEl = container.firstElementChild;
+
+          if (hydratedEl) {
+            // Append to the app container
+            app.appendChild(hydratedEl);
+
+            // Optionally hydrate bindings, slots, etc.
+            if (typeof hydrateComponent === 'function') {
+              await hydrateComponent(
+                app,
+                // actions.init || (() => actions),
+                { ...actions, ...params },
+                // actions.template,
+                // params,
+                // actions.init || (() => actions),
+                // actions.template,
+                // params,
+              );
+            }
+          }
+        }
 
         // before enter
         // Handle beforeEnter
@@ -278,9 +321,21 @@ async function loadPage(app, route, params = {}, match = null) {
                 console.warn('[MiniSPA] Error in onMount():', err);
               }
             }
+
+            // Store onDestroy for later cleanup
+            currentDestroy = () => {
+              // Call component destroy if exists
+              if (typeof actions.onDestroy === 'function') {
+                actions.onDestroy();
+              }
+              // Clean up rendered template
+              if (hydratedEl && hydratedEl.remove) {
+                hydratedEl.remove();
+              }
+            };
             currentDestroy =
-              typeof actions.onDestroy === 'function'
-                ? actions.onDestroy
+              typeof actions?.onDestroy === 'function'
+                ? actions?.onDestroy
                 : null;
           }
         });
