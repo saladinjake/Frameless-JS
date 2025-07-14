@@ -5,6 +5,6 @@ export function useDomRefs(scope = document) {
 
   return {
     refs,
-    $: (id) => scope.getElementById?.(id) || scope.querySelector?.(`#${id}`),
+    $: (id) => scope.getElementById?.(id) || scope.querySelector?.(`${id}`),
   };
 }

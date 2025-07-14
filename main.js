@@ -2,7 +2,7 @@ import { routes } from './AppRoutes';
 
 const app = document.getElementById('app');
 const loadedScriptSrcs = new Set();
-const DEFAULT_ROUTE = 'index';
+const DEFAULT_ROUTE = 'home';
 let currentDestroy = null;
 
 function getRouteAndParams() {
@@ -87,10 +87,41 @@ function matchRoute(path) {
 }
 
 const runScriptModule = async (scriptPath, params) => {
+  console.log('here...');
   const module = await import(`./${scriptPath}?t=${Date.now()}`);
   if (typeof module.init === 'function') {
-    const actions = module.init(params);
-    if (typeof actions === 'object') bindActions(actions);
+    const actions = module.init(params) || {};
+
+    // before enter
+    // Handle beforeEnter
+    if (typeof actions.beforeEnter === 'function') {
+      try {
+        const allowed = actions.beforeEnter(params);
+        if (!allowed) {
+          app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
+          hideLoader();
+          return;
+        }
+      } catch (err) {
+        console.warn('[Frameless] Error in beforeEnter():', err);
+      }
+    }
+
+    console.log(actions, '<<<<<<<<');
+    requestAnimationFrame(() => {
+      if (typeof actions === 'object') {
+        bindActions(actions);
+        if (typeof actions.onMount === 'function') {
+          try {
+            requestAnimationFrame(() => actions.onMount(params));
+          } catch (err) {
+            console.warn('[MiniSPA] Error in onMount():', err);
+          }
+        }
+        currentDestroy =
+          typeof actions.onDestroy === 'function' ? actions.onDestroy : null;
+      }
+    });
   }
 };
 
@@ -161,36 +192,11 @@ async function loadPage(route, params = {}, match = null) {
     const doc = parser.parseFromString(htmlText, 'text/html');
     const content = doc.body;
 
-    // requestAnimationFrame(() => {
-    //   app.innerHTML = '';
-    //   Array.from(content.children).forEach((child) =>
-    //     app.appendChild(child.cloneNode(true)),
-    //   );
-    // });
-
-    // element to html dom
-    // const temp = document.createElement('div');
-    // temp.innerHTML = htmlText;
-    //   let finalHTML = temp;
     //
     const viewDOM = htmlToDOM(htmlText);
 
     let finalDOM = viewDOM;
     if (route.layout) {
-      // for single slot
-      //   const layoutRes = await fetch(route.layout);
-      //   const layoutHTML = await layoutRes.text();
-
-      //   const layoutDOM = document.createElement('div');
-      //   layoutDOM.innerHTML = layoutHTML;
-
-      //   const slot = layoutDOM.querySelector('slot');
-      //   if (slot) {
-      //     slot.replaceWith(...temp.children);
-      //   }
-
-      //   finalHTML = layoutDOM;
-
       const layoutRes = await fetch(route.layout);
       const layoutHTML = await layoutRes.text();
       const layoutDOM = htmlToDOM(layoutHTML);
@@ -235,6 +241,7 @@ async function loadPage(route, params = {}, match = null) {
       (route.scripts && typeof route.scripts == 'string')
     ) {
       const module = await import(`./${route.script}?t=${Date.now()}`);
+      console.log(module, 'cant reach');
       if (typeof module.init === 'function') {
         // const actions = module.init(params);
         // if (typeof actions === 'object') {
@@ -259,6 +266,7 @@ async function loadPage(route, params = {}, match = null) {
           }
         }
 
+        console.log(actions, '<<<<<<<<');
         requestAnimationFrame(() => {
           if (typeof actions === 'object') {
             bindActions(actions);
@@ -297,25 +305,44 @@ async function loadPage(route, params = {}, match = null) {
     hideLoader();
   }
 }
-
 function handleRoute() {
-  const { path, params } = getRouteAndParams();
-
-  const queryParams = params.queryParams;
-  if (!path || path.trim() === '') {
-    const newPath = DEFAULT_ROUTE;
-    location.hash = `#${newPath}`;
+  if (location.hash === '#') {
+    history.replaceState(null, '', `#${DEFAULT_ROUTE}`);
     return;
   }
 
-  const matched = matchRoute(path);
+  const { path, params } = getRouteAndParams();
+  const queryParams = params.queryParams;
+
+  // ✅ Use fallback path if hash is empty or equals DEFAULT_ROUTE
+  let targetPath = path;
+
+  if (!location.hash || path === DEFAULT_ROUTE) {
+    targetPath = DEFAULT_ROUTE;
+
+    // ✅ Set hash if it's not already set
+    if (!location.hash) {
+      history.replaceState(null, '', `#${DEFAULT_ROUTE}`);
+    }
+  }
+
+  const matched = matchRoute(targetPath);
 
   if (matched) {
     const { route, match, params: pathParams } = matched;
     const combinedParams = { ...queryParams, ...pathParams };
+
+    console.log(
+      '[Frameless] Matched route:',
+      route.path,
+      route,
+      combinedParams,
+      match,
+    );
     loadPage(route, combinedParams, match);
   } else {
-    this.app.innerHTML = `<h2>404 - Not Found</h2>`;
+    console.warn('[Frameless] No matching route for:', targetPath);
+    app.innerHTML = `<h2>404 - Not Found</h2>`;
   }
 }
 

@@ -1,7 +1,16 @@
 // our custom like pure Functional Component
+import { bindText } from '../../src/core/bindings';
+import { useSignal } from '../../src/core/hooks/useSignals';
+import { useDomRefs } from '../../src/core/hooks/useDomRefs';
+import { useDomWatch } from '../../src/core/hooks/useDomWatch';
 
+let unbindText;
 export function init(params) {
   console.log('Route params:', params);
+  const { refs, $ } = useDomRefs();
+  const [count, setCount, subscribe] = useSignal(0);
+
+  console.log(refs, '<<<');
 
   // can work with params
   if (params?.user) {
@@ -18,18 +27,26 @@ export function init(params) {
     },
 
     onMount() {
-      requestAnimationFrame(() => {
-        console.log('About page loaded.');
-        const el = document.getElementById('some_about_id');
-        if (el) {
-          const p = document.createElement('p');
-          p.textContent = `Welcome, ${params.user || 'Guest'}!`;
-          el.appendChild(p);
-        }
+      bindText(refs.counterText, count, subscribe);
+      $('#inc').addEventListener('click', () => {
+        setCount((prev) => prev + 1);
       });
+      $('#dec').addEventListener('click', () => {
+        setCount((prev) => prev - 1);
+      });
+      console.log('About page loaded.');
+      const el = document.getElementById('some_about_id');
+      if (el) {
+        const p = document.createElement('p');
+        p.textContent = `Welcome, ${params.user || 'Guest'}!`;
+        el.appendChild(p);
+      }
     },
     onDestroy() {
       console.log('About page cleanup.');
+      if (typeof unbindText === 'function') {
+        unbindText(); //  Cleanup
+      }
     },
   };
 }
