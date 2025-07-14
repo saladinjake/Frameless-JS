@@ -1,6 +1,7 @@
-# Frameless.js – AProgressive Native, Component-First SPA Micro Framework
-##             ````Rethink , Reshape And Rewind Back to Vanill js Power Packed framework  ````
-- ⚡️The Most Un-opinionated Light weight  Modern  Javascript framework. 💡 Flexible. 🧩 Component-based. 🚫 No virtual DOM.
+## Frameless.js – AProgressive Native, Component-First SPA Micro Framework
+#             ````Rethink , Reshape And Rewind Back to Vanill js Power Packed framework  ````
+
+## - ⚡️The Most Un-opinionated Light weight  Modern  Javascript framework. 💡 Flexible. 🧩 Component-based. 🚫 No virtual DOM.
 Perfect for building fast, modern single-page applications using just native JavaScript + HTML.
 
 # 📦 Features
