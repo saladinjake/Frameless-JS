@@ -1,5 +1,9 @@
 import { bindText } from '../bindings/index';
-import { hydrateInputsBindings } from '../bindings/hydrateInputs';
+import {
+  hydrateInputs,
+  hydrateInputsBindings,
+} from '../bindings/hydrateInputs';
+import { getNestedValue, setNestedValue } from '../utils/index';
 
 export function createSignal(initialValue) {
   let value = initialValue;
@@ -134,4 +138,51 @@ export function peekGlobalStore(namespace, initial = {}) {
   const [get, set, listeners] = globalStore.get(namespace);
   set.watch = (fn) => listeners.push(fn);
   return [get, set];
+}
+
+export function getDeep(obj, path) {
+  return path.split('.').reduce((acc, part) => acc?.[part], obj);
+}
+
+export function setDeep(obj, path, value) {
+  const parts = path.split('.');
+  const last = parts.pop();
+  const target = parts.reduce((acc, part) => (acc[part] ??= {}), obj);
+  target[last] = value;
+}
+
+export function useFormBinding(state, setter, root = document) {
+  const props = Object.keys(flattenKeys(state()));
+
+  props.forEach((keyPath) => {
+    // 1. Bind input fields (two-way)
+    hydrateInputs(
+      keyPath,
+      state,
+      (val) => {
+        const updated = { ...state() };
+        setNestedValue(updated, keyPath, val);
+        setter(updated);
+      },
+      root,
+    );
+
+    // 2. Bind refs (text content)
+    const el = root.querySelector(`[data-ref="${keyPath}"]`);
+    if (el) {
+      bindText(el, () => getNestedValue(state(), keyPath));
+    }
+  });
+}
+
+function flattenKeys(obj, parent = '') {
+  return Object.entries(obj).reduce((acc, [key, val]) => {
+    const path = parent ? `${parent}.${key}` : key;
+    if (typeof val === 'object' && val !== null) {
+      Object.assign(acc, flattenKeys(val, path));
+    } else {
+      acc[path] = true;
+    }
+    return acc;
+  }, {});
 }

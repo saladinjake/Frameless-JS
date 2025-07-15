@@ -1,5 +1,3 @@
-// define your routes
-
 function navigate(path, query = {}) {
   const queryStr = new URLSearchParams(query).toString();
   location.hash = queryStr ? `#${path}?${queryStr}` : `#${path}`;

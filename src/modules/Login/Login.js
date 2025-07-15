@@ -1,32 +1,20 @@
-// import LoginTemplate from './components/Login.html';
-import { peekDomInputsState } from '../../core/hooks/index';
+import { peekSignal, useFormBinding } from '../../core/hooks';
 
-export function init(params) {
-  const [userName, setUserName] = peekDomInputsState(
-    'userName',
-    params?.user || '',
-  );
-
+export function init() {
+  const [profile, setProfile] = peekSignal({ name: 'Victor', city: 'Lagos' });
+  console.log(profile);
   return {
     template: `
-      <div>
-  <h2>Hello <span data-ref="userName"></span>!</h2>
+      <div class="card">
+        <h3>Hello <span data-ref="profile.name"></span></h3>
+        <input data-model="profile.name" placeholder="Name" />
 
-  <input
-    type="text"
-    placeholder="Enter name"
-    data-model="userName"
-  />
-</div>
+        <p>City: <span data-ref="profile.city"></span></p>
+        <input data-model="profile.city" placeholder="City" />
+      </div>
     `,
     onMount() {
-      console.log('User name:', userName());
-    },
-    onDestroy() {
-      console.log('Clean up...');
-    },
-    onComputed() {
-      // Optional computed logic
+      useFormBinding(profile, setProfile);
     },
   };
 }

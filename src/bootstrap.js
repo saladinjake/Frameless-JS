@@ -94,10 +94,6 @@ const runScriptModule = async (scriptPath, params, app) => {
   if (typeof module.init === 'function') {
     const actions = module.init(params) || {};
 
-    const template = actions?.template || null;
-
-   
-
     // before enter
     // Handle beforeEnter
     if (typeof actions.beforeEnter === 'function') {
@@ -119,23 +115,14 @@ const runScriptModule = async (scriptPath, params, app) => {
         bindActions(app, actions);
         if (typeof actions.onMount === 'function') {
           try {
-            requestAnimationFrame(() => actions.onMount(params));
+            requestAnimationFrame(() => actions.onMount({ app, params }));
           } catch (err) {
             console.warn('[MiniSPA] Error in onMount():', err);
           }
         }
 
         // Store onDestroy for later cleanup
-        currentDestroy = () => {
-          // Call component destroy if exists
-          if (typeof actions.onDestroy === 'function') {
-            actions.onDestroy();
-          }
-          // Clean up rendered template
-          if (hydratedEl && hydratedEl.remove) {
-            hydratedEl.remove();
-          }
-        };
+
         currentDestroy =
           typeof actions?.onDestroy === 'function' ? actions?.onDestroy : null;
       }
@@ -265,7 +252,7 @@ async function loadPage(app, route, params = {}, match = null) {
         // actions and lifecycles or template strings
         // are grouped to gether in the return object of our frmaeless functional component
         const actions = module.init(params) || {};
-        const template = actions?.template || null;
+        const template = actions?.template;
 
         let hydratedEl = null;
 
@@ -283,13 +270,8 @@ async function loadPage(app, route, params = {}, match = null) {
             if (typeof hydrateComponent === 'function') {
               await hydrateComponent(
                 app,
-                // actions.init || (() => actions),
+
                 { ...actions, ...params },
-                // actions.template,
-                // params,
-                // actions.init || (() => actions),
-                // actions.template,
-                // params,
               );
             }
           }
@@ -316,7 +298,7 @@ async function loadPage(app, route, params = {}, match = null) {
             bindActions(app, actions);
             if (typeof actions.onMount === 'function') {
               try {
-                requestAnimationFrame(() => actions.onMount(params));
+                requestAnimationFrame(() => actions.onMount({ app, params }));
               } catch (err) {
                 console.warn('[MiniSPA] Error in onMount():', err);
               }
