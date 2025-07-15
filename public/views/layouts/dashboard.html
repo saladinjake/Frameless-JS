@@ -1,4 +1,18 @@
-<!-- dashboard.html -->
-<header><slot name="header"></slot></header>
-<main><slot></slot></main>
-<aside><slot name="sidebar"></slot></aside>
+<!-- views/layouts/default.html -->
+<div class="layout">
+  <header>Header Area</header>
+
+  <div class="main-grid">
+    <aside class="sidebar">
+      <slot name="sidebar">
+        <p>Default Sidebar</p>
+      </slot>
+    </aside>
+
+    <section class="content">
+      <slot></slot> <!-- unnamed slot -->
+    </section>
+  </div>
+
+  <footer>Footer Area</footer>
+</div>

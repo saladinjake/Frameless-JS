@@ -30,12 +30,10 @@ function bindActions(app, handlers = {}) {
 function matchRoute(path, routes) {
   const tryMatch = (tryPath) => {
     for (const route of routes) {
-      // Static exact match
       if (typeof route.path === 'string' && route.path === tryPath) {
         return { route, match: null, params: {} };
       }
 
-      // Dynamic pattern match: /user/:id
       if (typeof route.path === 'string' && route.path.includes(':')) {
         const paramNames = [];
         const regexStr = route.path
@@ -58,7 +56,6 @@ function matchRoute(path, routes) {
         }
       }
 
-      // RegExp route
       if (route.path instanceof RegExp) {
         const match = tryPath.match(route.path);
         if (match) return { route, match, params: {} };
@@ -68,11 +65,9 @@ function matchRoute(path, routes) {
     return null;
   };
 
-  // Try the direct path first
   let result = tryMatch(path);
   if (result) return result;
 
-  // Handle fallback to index/home if ends with slash
   if (path.endsWith('/')) {
     const fallbackPaths = [`${path}index`, `${path}home`];
     for (const fallbackPath of fallbackPaths) {
@@ -81,54 +76,11 @@ function matchRoute(path, routes) {
     }
   }
 
-  // Fallback route `*`
   const fallback = routes.find((r) => r.path === '*');
   if (fallback) return { route: fallback, match: null, params: {} };
 
   return null;
 }
-
-const runScriptModule = async (scriptPath, params, app) => {
-  console.log('here...');
-  const module = await import(`./${scriptPath}?t=${Date.now()}`);
-  if (typeof module.init === 'function') {
-    const actions = module.init(params) || {};
-
-    // before enter
-    // Handle beforeEnter
-    if (typeof actions.beforeEnter === 'function') {
-      try {
-        const allowed = actions.beforeEnter(params);
-        if (!allowed) {
-          app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
-          hideLoader();
-          return;
-        }
-      } catch (err) {
-        console.warn('[Frameless] Error in beforeEnter():', err);
-      }
-    }
-
-    console.log(actions, '<<<<<<<<');
-    requestAnimationFrame(() => {
-      if (typeof actions === 'object') {
-        bindActions(app, actions);
-        if (typeof actions.onMount === 'function') {
-          try {
-            requestAnimationFrame(() => actions.onMount({ app, params }));
-          } catch (err) {
-            console.warn('[MiniSPA] Error in onMount():', err);
-          }
-        }
-
-        // Store onDestroy for later cleanup
-
-        currentDestroy =
-          typeof actions?.onDestroy === 'function' ? actions?.onDestroy : null;
-      }
-    });
-  }
-};
 
 function showLoader() {
   const loader = document.getElementById('loader');
@@ -140,208 +92,218 @@ function hideLoader() {
   if (loader) loader.style.display = 'none';
 }
 
-// Slot Injection + Action Binding
-function htmlToDOM(str) {
+// Helpers
+
+function htmlToDOM(html) {
   const temp = document.createElement('div');
-  temp.innerHTML = str;
+  temp.innerHTML = html;
   return temp;
 }
 
 function injectSlots(layout, view) {
-  // Replace default slot
-  const mainSlot = layout.querySelector('slot');
-  if (mainSlot) {
-    mainSlot.replaceWith(...view.children);
+  // Default unnamed slot
+  const defaultSlot = layout.querySelector('slot:not([name])');
+  if (defaultSlot) {
+    defaultSlot.replaceWith(...view.children);
   }
 
   // Named slots
-
   layout.querySelectorAll('slot[name]').forEach((slot) => {
-    if (slot) {
-      const name = slot.getAttribute('name');
-      const template = view.querySelector(`template[slot="${name}"]`);
-      if (template) {
-        const frag = template.content.cloneNode(true);
-        slot.replaceWith(frag);
-      }
+    const name = slot.getAttribute('name');
+    const templates = view.querySelectorAll(`template[slot="${name}"]`);
+    if (templates.length > 0) {
+      const frag = document.createDocumentFragment();
+      templates.forEach((tpl) => {
+        frag.appendChild(tpl.content.cloneNode(true));
+      });
+      slot.replaceWith(frag);
     }
   });
 }
 
+const runScriptModule = async (scriptFile, params, app) => {
+  const scriptPaths = scriptFile;
+  const hydratedTemplates = [];
+  let actions = {};
+
+  for (const scriptPath of scriptPaths) {
+    if (!scriptPath) continue;
+
+    const module = await import(`./${scriptPath}?t=${Date.now()}`);
+    if (typeof module.init === 'function') {
+      actions = module.init(params) || {};
+      const template = actions?.template;
+
+      if (typeof actions.beforeEnter === 'function') {
+        const allowed = actions.beforeEnter(params);
+        if (!allowed) {
+          app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
+          hideLoader();
+          return { hydratedTemplates, actions };
+        }
+      }
+
+      if (template && typeof template === 'string') {
+        const container = document.createElement('div');
+        container.innerHTML = template;
+        const templates = [...container.children];
+
+        for (const el of templates) {
+          const slotName = el.getAttribute?.('slot') || null;
+          await hydrateComponent(el, actions);
+
+          // Run any inline or external scripts inside the template
+          const scripts = el.querySelectorAll('script');
+          for (const oldScript of scripts) {
+            const newScript = document.createElement('script');
+            if (oldScript.src) {
+              if (loadedScriptSrcs.has(oldScript.src)) continue;
+              newScript.src = oldScript.src;
+              loadedScriptSrcs.add(oldScript.src);
+            } else {
+              newScript.textContent = oldScript.textContent;
+            }
+            if (oldScript.type) newScript.type = oldScript.type;
+            document.body.appendChild(newScript);
+          }
+
+          hydratedTemplates.push({ el, slot: slotName });
+        }
+      }
+
+      requestAnimationFrame(() => {
+        bindActions(app, actions);
+        actions.onMount?.({ app, params });
+
+        currentDestroy = () => {
+          actions.onDestroy?.();
+          hydratedTemplates.forEach(({ el }) => el.remove?.());
+        };
+      });
+    }
+  }
+
+  return { hydratedTemplates, actions };
+};
+
 async function loadPage(app, route, params = {}, match = null) {
-  //  Run middleware
-  if (route.middleware) {
-    const result = await route.middleware(params);
-    if (!result) {
-      app.innerHTML = `<p>Access denied by middleware.</p>`;
-      hideLoader();
-      return;
-    }
-  }
-
-  // Call previous onDestroy if exists
   try {
-    if (typeof currentDestroy === 'function') currentDestroy();
-  } catch (err) {
-    console.warn('[Frameless] Error in onDestroy():', err);
-  }
-  try {
-    showLoader();
-    app.classList.remove('fade-in');
+    window.__currentDestroy?.();
 
-    const res = await fetch(route.view);
-    const htmlText = await res.text();
+    const [viewRes, layoutRes] = await Promise.all([
+      fetch(route.view),
+      route.layout ? fetch(route.layout) : Promise.resolve({ text: () => '' }),
+    ]);
 
-    // to track previous dom
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlText, 'text/html');
-    const content = doc.body;
+    const [viewHTML, layoutHTML] = await Promise.all([
+      viewRes.text(),
+      layoutRes.text(),
+    ]);
 
-    //
-    const viewDOM = htmlToDOM(htmlText);
-
-    let finalDOM = viewDOM;
-    if (route.layout) {
-      const layoutRes = await fetch(route.layout);
-      const layoutHTML = await layoutRes.text();
-      const layoutDOM = htmlToDOM(layoutHTML);
-
-      injectSlots(layoutDOM, viewDOM);
-      finalDOM = layoutDOM;
-    }
-
-    app.innerHTML = '';
-    requestAnimationFrame(() => {
-      [...finalDOM.children].forEach((el) =>
-        app.appendChild(el.cloneNode(true)),
-      );
+    await slotAwareRender({
+      app,
+      route,
+      viewHTML,
+      layoutHTML,
+      params,
     });
-    // hydrateComponent(app, {});
-
-    // Auto-execute inline and external scripts
-    const scripts = content.querySelectorAll('script');
-    for (const oldScript of scripts) {
-      const newScript = document.createElement('script');
-
-      // External script with deduplication
-      if (oldScript.src) {
-        if (loadedScriptSrcs.has(oldScript.src)) continue;
-        newScript.src = oldScript.src;
-        loadedScriptSrcs.add(oldScript.src);
-      } else {
-        // Inline script
-        newScript.textContent = oldScript.textContent;
-      }
-
-      //  Preserve type (e.g., module)
-      if (oldScript.type) {
-        newScript.type = oldScript.type;
-      }
-
-      document.body.appendChild(newScript);
-    }
-
-    // Import scoped JS for this route
-    if (
-      (route.script && typeof route.script == 'string') ||
-      (route.scripts && typeof route.scripts == 'string')
-    ) {
-      const module = await import(`./${route.script}?t=${Date.now()}`);
-      console.log(module, 'cant reach');
-      if (typeof module.init === 'function') {
-        // actions and lifecycles or template strings
-        // are grouped to gether in the return object of our frmaeless functional component
-        const actions = module.init(params) || {};
-        const template = actions?.template;
-
-        let hydratedEl = null;
-
-        if (template) {
-          // Convert string template to DOM
-          const container = document.createElement('div');
-          container.innerHTML = template;
-          hydratedEl = container.firstElementChild;
-
-          if (hydratedEl) {
-            // Append to the app container
-            app.appendChild(hydratedEl);
-
-            // Optionally hydrate bindings, slots, etc.
-            if (typeof hydrateComponent === 'function') {
-              await hydrateComponent(
-                app,
-
-                { ...actions, ...params },
-              );
-            }
-          }
-        }
-
-        // before enter
-        // Handle beforeEnter
-        if (typeof actions.beforeEnter === 'function') {
-          try {
-            const allowed = actions.beforeEnter(params);
-            if (!allowed) {
-              app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
-              hideLoader();
-              return;
-            }
-          } catch (err) {
-            console.warn('[Frameless] Error in beforeEnter():', err);
-          }
-        }
-
-        console.log(actions, '<<<<<<<<');
-        requestAnimationFrame(() => {
-          if (typeof actions === 'object') {
-            bindActions(app, actions);
-            if (typeof actions.onMount === 'function') {
-              try {
-                requestAnimationFrame(() => actions.onMount({ app, params }));
-              } catch (err) {
-                console.warn('[MiniSPA] Error in onMount():', err);
-              }
-            }
-
-            // Store onDestroy for later cleanup
-            currentDestroy = () => {
-              // Call component destroy if exists
-              if (typeof actions.onDestroy === 'function') {
-                actions.onDestroy();
-              }
-              // Clean up rendered template
-              if (hydratedEl && hydratedEl.remove) {
-                hydratedEl.remove();
-              }
-            };
-            currentDestroy =
-              typeof actions?.onDestroy === 'function'
-                ? actions?.onDestroy
-                : null;
-          }
-        });
-      }
-    } else if (Array.isArray(route.script) || Array.isArray(route.scripts)) {
-      if (route.scripts) {
-        for (const scriptPath of route.scripts) {
-          await runScriptModule(scriptPath, params, app);
-        }
-      } else if (route.script) {
-        await runScriptModule(route.script, params, app);
-      }
-    }
-
-    // route on load before script executiom
-    route?.onLoad?.();
-    // Add transition
-    requestAnimationFrame(() => app.classList.add('fade-in'));
   } catch (err) {
-    console.error(err);
-    app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
-  } finally {
-    hideLoader();
+    console.error('Render error:', err);
+    app.innerHTML = `<h2>Error loading page</h2>`;
   }
+}
+
+export async function slotAwareRender({
+  app,
+  route,
+  viewHTML,
+  layoutHTML,
+  params,
+}) {
+  const viewDOM = htmlToDOM(viewHTML);
+  let finalDOM = viewDOM;
+
+  // 1. Parse layout and inject view template slots (if any)
+  if (layoutHTML) {
+    const layoutDOM = htmlToDOM(layoutHTML);
+    injectSlots(layoutDOM, viewDOM); // from view.html into layout slots
+    finalDOM = layoutDOM;
+  }
+
+  // 2. Clone DOM before rendering
+  const domClone = finalDOM.cloneNode(true);
+
+  // 3. If there are scripts/modules, run and extract hydratedTemplates
+  const hydratedTemplates = [];
+  let actions = {};
+  if (route.script || route.scripts) {
+    const scriptPaths = Array.isArray(route.scripts || route.script)
+      ? route.scripts || route.script
+      : [route.script];
+
+    const module = await import(`./${scriptPaths[0]}?t=${Date.now()}`);
+    if (typeof module.init === 'function') {
+      actions = module.init(params) || {};
+      const template = actions.template;
+
+      if (template && typeof template === 'string') {
+        const container = document.createElement('div');
+        container.innerHTML = template;
+
+        const elements = [...container.children];
+        for (const el of elements) {
+          const slot = el.getAttribute('slot') || null;
+          await hydrateComponent(el, actions);
+
+          // Inject into the domClone before anything is rendered
+          const target = slot
+            ? domClone.querySelector(`slot[name="${slot}"]`)
+            : domClone.querySelector('slot:not([name])');
+
+          if (target) {
+            target.replaceWith(el);
+          }
+        }
+      }
+
+      requestAnimationFrame(() => {
+        actions.onMount?.({ app, params });
+
+        // set onDestroy handler
+        window.__currentDestroy = () => {
+          actions.onDestroy?.();
+        };
+      });
+    }
+  }
+
+  // 4. Replace <slot> tags with actual hydrated templates done above
+
+  // 5. Replace app content with final DOM
+  app.innerHTML = '';
+  requestAnimationFrame(() => {
+    [...domClone.children].forEach((el) => app.appendChild(el.cloneNode(true)));
+    app.classList.add('fade-in');
+  });
+
+  // 6. Execute inline/external scripts from viewHTML or layout
+  const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
+  const scripts = doc.querySelectorAll('script');
+  for (const oldScript of scripts) {
+    const newScript = document.createElement('script');
+    if (oldScript.src) {
+      if (loadedScriptSrcs.has(oldScript.src)) continue;
+      newScript.src = oldScript.src;
+      loadedScriptSrcs.add(oldScript.src);
+    } else {
+      newScript.textContent = oldScript.textContent;
+    }
+
+    if (oldScript.type) newScript.type = oldScript.type;
+    document.body.appendChild(newScript);
+  }
+
+  route?.onLoad?.();
 }
 
 function handleRoute(app, routes) {
@@ -352,14 +314,10 @@ function handleRoute(app, routes) {
 
   const { path, params } = getRouteAndParams();
   const queryParams = params.queryParams;
-
-  // ✅ Use fallback path if hash is empty or equals DEFAULT_ROUTE
   let targetPath = path;
 
   if (!location.hash || path === DEFAULT_ROUTE) {
     targetPath = DEFAULT_ROUTE;
-
-    // ✅ Set hash if it's not already set
     if (!location.hash) {
       history.replaceState(null, '', `#${DEFAULT_ROUTE}`);
     }
