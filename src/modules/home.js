@@ -1,28 +1,20 @@
-// our custom like pure Functional Component
-import { peekDomRefs, peekStore, seekDomWatch } from '../core/hooks/index';
+import { useStore, bind } from '../core/hooks/basic';
 
 export function init(params) {
-  const { refs, $ } = peekDomRefs();
-  const [getUser, setUser, subscribe] = peekStore('user', { name: 'Guest' });
+  const store = useStore({ name: 'Victor' });
 
-  console.log(refs, $);
-
-  requestAnimationFrame(() => {
-    setUser({ name: 'Victor' });
-  });
-
-  console.log(getUser().name, '<<>?'); // Victor
+  setTimeout(() => {
+    store.state.name = 'Juwa';
+  }, 3000);
 
   console.log(params, '>>>');
   return {
     template: `
-       <!--free to write html codes -->
+        <input data-bind="name" />
+  <p>Hello, <span data-bind-text="name"></span>!</p>
     `,
     onMount() {
-      $('#title').textContent = 'Updated!';
-      seekDomWatch(() => {
-        refs.welcome.textContent = `Hey there, ${getUser().name}!`;
-      }, [{ subscribe }]);
+      bind(store);
       console.log('mounted...');
     },
     onDestroy() {
