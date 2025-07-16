@@ -28,6 +28,44 @@ export function useStore(initial = {}) {
   return { state, subscribe };
 }
 
+export function usePropsStore(initial = {}, fallback = {}) {
+  const listeners = new Map();
+
+  const notify = (key, val) => {
+    (listeners.get(key) || []).forEach((cb) => cb(val));
+  };
+
+  // Final initial state (props + fallbacks)
+  const rawState = { ...fallback, ...initial };
+
+  const state = new Proxy(rawState, {
+    set(target, key, val) {
+      if (target[key] !== val) {
+        target[key] = val;
+        notify(key, val);
+      }
+      return true;
+    },
+  });
+
+  const subscribe = (key, cb) => {
+    if (!listeners.has(key)) listeners.set(key, []);
+    listeners.get(key).push(cb);
+    cb(state[key]); // Initial emit
+  };
+
+  // Auto-generate bindings for data-model and data-bind-text
+  const bindings = {};
+  for (const key of Object.keys(state)) {
+    bindings[key] = (val) => {
+      if (val !== undefined) state[key] = val;
+      return state[key];
+    };
+  }
+
+  return { state, subscribe, bindings };
+}
+
 // 2. Bind input and text nodes
 export function bind(store) {
   // data-bind and data-model (two-way input binding)
@@ -80,4 +118,30 @@ export function setupReactivity(store, root = document) {
       store.subscribe(key, (val) => el.setAttribute(attr, val));
     });
   });
+}
+// hooks/watchEffect.js
+
+export function watchEffect({ store, props = {}, callback }) {
+  if (!store || typeof store.subscribe !== 'function') return;
+
+  let oldState = { ...store.state };
+
+  const trigger = () => {
+    const newState = { ...store.state };
+    const changed = Object.keys(newState).some(
+      (key) => newState[key] !== oldState[key],
+    );
+
+    if (changed) {
+      oldState = newState;
+      callback({ props, state: newState });
+    }
+  };
+
+  for (const key of Object.keys(store.state)) {
+    store.subscribe(key, trigger);
+  }
+
+  // Trigger once on init
+  trigger();
 }

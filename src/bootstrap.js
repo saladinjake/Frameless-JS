@@ -1,8 +1,9 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity } from './core/hooks/basic';
+import { setupReactivity, bind } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
+import { bindPropsToStore } from './core/utils';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
@@ -80,57 +81,6 @@ function hideLoader() {
   if (loader) loader.style.display = 'none';
 }
 
-function htmlToDOM(html) {
-  const temp = document.createElement('div');
-  temp.innerHTML = html;
-  return temp;
-}
-function injectSlots(layout, view) {
-  const inject = (host, content) => {
-    // 1. Named slots
-    host.querySelectorAll('slot[name]').forEach((slot) => {
-      const name = slot.getAttribute('name');
-
-      // Prefer <template slot="name">
-      const tpl = content.querySelector(`template[slot="${name}"]`);
-      if (tpl) {
-        const frag = tpl.content.cloneNode(true);
-        injectSlots(frag, content);
-        slot.replaceWith(frag);
-        return;
-      }
-
-      // Fallback: any non-template with slot="name"
-      const node = content.querySelector(`[slot="${name}"]:not(template)`);
-      if (node) {
-        slot.replaceWith(node.cloneNode(true));
-      }
-    });
-
-    // 2. Default unnamed slot
-    const defaultSlot = host.querySelector('slot:not([name])');
-    if (defaultSlot) {
-      const tpl = content.querySelector('template:not([slot])');
-      if (tpl) {
-        const frag = tpl.content.cloneNode(true);
-        injectSlots(frag, content);
-        defaultSlot.replaceWith(frag);
-        return;
-      }
-
-      const fallbackNodes = [...content.children].filter(
-        (el) => el.tagName !== 'TEMPLATE' && !el.hasAttribute('slot'),
-      );
-
-      if (fallbackNodes.length > 0) {
-        defaultSlot.replaceWith(...fallbackNodes.map((n) => n.cloneNode(true)));
-      }
-    }
-  };
-
-  inject(layout, view);
-}
-
 function shallowDiffAndPatch(parent, newChildren) {
   const existing = [...parent.children];
   const incoming = [...newChildren];
@@ -149,6 +99,51 @@ function shallowDiffAndPatch(parent, newChildren) {
   for (let j = incoming.length; j < existing.length; j++) {
     existing[j].remove();
   }
+}
+
+function htmlToDOM(html) {
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  return temp;
+}
+
+function injectSlots(layout, view) {
+  const inject = (host, content) => {
+    host.querySelectorAll('slot[name]').forEach((slot) => {
+      const name = slot.getAttribute('name');
+      const tpl = content.querySelector(`template[slot="${name}"]`);
+      if (tpl) {
+        const frag = tpl.content.cloneNode(true);
+        injectSlots(frag, content);
+        slot.replaceWith(frag);
+        return;
+      }
+      const node = content.querySelector(`[slot="${name}"]:not(template)`);
+      if (node) {
+        slot.replaceWith(node.cloneNode(true));
+      }
+    });
+
+    const defaultSlot = host.querySelector('slot:not([name])');
+    if (defaultSlot) {
+      const tpl = content.querySelector('template:not([slot])');
+      if (tpl) {
+        const frag = tpl.content.cloneNode(true);
+        injectSlots(frag, content);
+        defaultSlot.replaceWith(frag);
+        return;
+      }
+
+      const fallbackNodes = [...content.children].filter(
+        (el) => el.tagName !== 'TEMPLATE' && !el.hasAttribute('slot'),
+      );
+      if (fallbackNodes.length > 0) {
+        defaultSlot.replaceWith(...fallbackNodes.map((n) => n.cloneNode(true)));
+      }
+    }
+  };
+
+  inject(layout, view);
 }
 
 function applyScopedStyle(cssText, scopeId) {
@@ -176,13 +171,16 @@ export async function slotAwareRender({
   const viewDOM = htmlToDOM(viewHTML);
   let finalDOM = viewDOM;
 
+  const props = params;
+  const context = { app, params, props };
+
+  let actions = {};
+
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
     injectSlots(layoutDOM, viewDOM);
 
-    //  First hydration pass after slot injection
-    await resolveChildComponents(layoutDOM, {}); // Resolves <my-profile> etc. in slot content
-
+    await resolveChildComponents(layoutDOM, context);
     finalDOM = layoutDOM;
   }
 
@@ -199,7 +197,6 @@ export async function slotAwareRender({
   }
 
   const domClone = finalDOM.cloneNode(true);
-  let actions = {};
 
   if (route.script || route.scripts) {
     const scriptPaths = Array.isArray(route.scripts || route.script)
@@ -208,8 +205,21 @@ export async function slotAwareRender({
 
     const module = await import(`./${scriptPaths[0]}?t=${Date.now()}`);
     if (typeof module.init === 'function') {
-      actions = module.init({ params, app }) || {};
+      actions = (await module.init({ ...context, props })) || {};
+
       const template = actions.template;
+
+      if (!actions.bindings) actions.bindings = {};
+      if (actions.props && actions.store) {
+        for (const key of Object.keys(actions.props)) {
+          if (!(key in actions.bindings)) {
+            actions.bindings[key] = (val) => {
+              if (val !== undefined) actions.store.state[key] = val;
+              return actions.store.state[key];
+            };
+          }
+        }
+      }
 
       if (template && typeof template === 'string') {
         const container = document.createElement('div');
@@ -218,11 +228,10 @@ export async function slotAwareRender({
         for (const el of [...container.children]) {
           const slot = el.getAttribute('slot') || null;
 
-          await hydrateComponent(el, actions);
-          if (actions?.store) setupReactivity(actions.store, el);
+          await hydrateComponent(el, { ...context, ...actions, props });
+          if (actions.store) setupReactivity(actions.store, el);
 
-          //  Ensure child components in view's own template are hydrated too
-          await resolveChildComponents(el, actions);
+          await resolveChildComponents(el, { ...context, ...actions, props });
 
           const target = slot
             ? domClone.querySelector(`slot[name="${slot}"]`)
@@ -233,15 +242,14 @@ export async function slotAwareRender({
       }
 
       requestAnimationFrame(() => {
-        actions.onMount?.({ app, params });
+        actions.onMount?.({ ...context, ...actions, props });
         window.__currentDestroy = () => actions.onDestroy?.();
       });
     }
   }
 
-  //  Second pass for any dynamically attached late components
-  await hydrateComponent(domClone, actions);
-  await resolveChildComponents(domClone, actions);
+  await hydrateComponent(domClone, { ...context, ...actions, props });
+  await resolveChildComponents(domClone, { ...context, ...actions, props });
 
   requestAnimationFrame(() => {
     shallowDiffAndPatch(app, domClone.children);

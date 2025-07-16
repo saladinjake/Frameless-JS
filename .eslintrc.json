@@ -28,6 +28,7 @@
     "no-empty-pattern":"off",
      "no-underscore-dangle": "off",
     "eqeqeq":"off",
+    "guard-for-in": "off",
      "no-alert": "off",
      "no-nested-ternary":"off",
      "consistent-return":"off",

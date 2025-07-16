@@ -5,7 +5,7 @@ import { init as MyProfile } from './components/childComponentSample';
 
 defineComponent('my-profile', () => Promise.resolve({ init: MyProfile }));
 
-export function init({ params, app }) {
+export function init({ props = {} }) {
   const store = useStore({
     name: 'Victor',
     image: 'https://placekitten.com/200/200',
@@ -24,7 +24,7 @@ export function init({ params, app }) {
      <div slot="header">Main Section</div>
       <div slot="sidebar">
        
-        <my-profile></my-profile>
+        <my-profile bio="this is a demo"></my-profile>
       </div>
 
       <div>
