@@ -1,24 +1,60 @@
-import { useStore, bind } from '../core/hooks/basic';
+import { useStore, setupReactivity } from '../core/hooks/basic';
+import { defineComponent } from '../core/components/defineComponent';
 
-export function init(params) {
-  const store = useStore({ name: 'Victor' });
+import { init as MyProfile } from './components/childComponentSample';
 
+defineComponent('my-profile', () => Promise.resolve({ init: MyProfile }));
+
+export function init({ props = {} }) {
+  const store = useStore({
+    name: 'Victor',
+    image: 'https://placekitten.com/200/200',
+  });
+
+  // Just change name after 3s to prove it's reactive
   setTimeout(() => {
-    store.state.name = 'Juwa';
+    store.state.name = 'Juwa 🚀';
   }, 3000);
 
-  console.log(params, '>>>');
   return {
+    store,
     template: `
-        <input data-bind="name" />
-  <p>Hello, <span data-bind-text="name"></span>!</p>
+    <main>
+     <h2>Welcom to Frameless</h2>
+     <div slot="header">Main Section</div>
+      <div slot="sidebar">
+       
+        <my-profile bio="this is a demo"></my-profile>
+      </div>
+
+      <div>
+       
+        <label>Your Name:</label>
+        <h3>Hello, <strong data-bind-text="name"></strong>!</h3>
+        <input type="text" data-model="name" />
+       
+      </div>
+
+      <!-- Type 1: Template slot -->
+<template slot="more1">
+  <h1>This is the header</h1>
+</template>
+
+<!-- Type 2: Component slot -->
+<my-profile slot="more2"></my-profile>
+
+<!-- Type 3: Fallback unnamed content -->
+<div>
+  <p>This is default content in the unnamed slot</p>
+     <my-profile></my-profile>
+</div>
+      </main>
     `,
-    onMount() {
-      bind(store);
-      console.log('mounted...');
+    onMount(option) {
+      console.log('[home.js] Mounted', option);
     },
     onDestroy() {
-      console.log('About page cleanup.');
+      console.log('[home.js] Destroyed');
     },
   };
 }

@@ -1,5 +1,14 @@
-<section>
-  <h1>Dashboard Page</h1>
-  <button data-action="greet" data-name="Victor">Say Hello</button>
-  <div id="some_dashboard_id"></div>
-</section>
+
+<slot name="sidebar">
+  <nav>
+    <ul>
+      <li><a href="#profile">Profile</a></li>
+      <li><a href="#settings">Settings</a></li>
+    </ul>
+  </nav>
+</slot>
+
+<slot>
+  <h2>Main Page View</h2>
+  <p>This content will go in the default unnamed slot.</p>
+</slot>

@@ -67,15 +67,15 @@
     <a href="#dashboard">Dashboard</a>
   </nav>
 
-
-  <div class="layout">
-    <header>
-      <h1>Injecting layout example with slot</h1>
-    </header>
-    <main>
+  <main>
+  
+      <slot name="header"></slot>
+      <slot name="sidebar"></slot>
       <slot></slot>
-    </main>
-    <footer><small>© 2025</small></footer>
-  </div>
+    
+    <slot></slot>
+  </main>
+  <footer><small>© 2025</small></footer>
+
 
 </body>

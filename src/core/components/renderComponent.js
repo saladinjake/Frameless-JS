@@ -18,7 +18,7 @@ export function renderComponent(ComponentFn, props = {}) {
     // Call onMount and hydrate props/dom
     component.onMount?.(props);
 
-    // ⬅️ Hydration hidden from user
+    //  Hydration hidden from user
     hydrateComponent(root, props, component.computed || {});
   });
 

@@ -1,10 +1,13 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
+import { setupReactivity, bind } from './core/hooks/basic';
+import { resolveChildComponents } from './core/components/resolveChildComponent';
+import { bindPropsToStore } from './core/utils';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
-let currentDestroy = null;
+const currentDestroy = null;
 
 function getRouteAndParams() {
   const hash = decodeURIComponent(location.hash.slice(1));
@@ -13,29 +16,13 @@ function getRouteAndParams() {
   return { path, params };
 }
 
-function bindActions(app, handlers = {}) {
-  const elements = app.querySelectorAll('[data-action]');
-  elements.forEach((el) => {
-    const { action, eventType = null } = el.dataset;
-    const fn = handlers[action];
-    if (typeof fn !== 'function') return;
-
-    el.addEventListener(eventType != null ? eventType : 'click', (event) => {
-      event.preventDefault();
-      fn({ event, element: el, dataset: { ...el.dataset } });
-    });
-  });
-}
-
 function matchRoute(path, routes) {
   const tryMatch = (tryPath) => {
     for (const route of routes) {
-      // Static exact match
       if (typeof route.path === 'string' && route.path === tryPath) {
         return { route, match: null, params: {} };
       }
 
-      // Dynamic pattern match: /user/:id
       if (typeof route.path === 'string' && route.path.includes(':')) {
         const paramNames = [];
         const regexStr = route.path
@@ -58,7 +45,6 @@ function matchRoute(path, routes) {
         }
       }
 
-      // RegExp route
       if (route.path instanceof RegExp) {
         const match = tryPath.match(route.path);
         if (match) return { route, match, params: {} };
@@ -68,11 +54,9 @@ function matchRoute(path, routes) {
     return null;
   };
 
-  // Try the direct path first
   let result = tryMatch(path);
   if (result) return result;
 
-  // Handle fallback to index/home if ends with slash
   if (path.endsWith('/')) {
     const fallbackPaths = [`${path}index`, `${path}home`];
     for (const fallbackPath of fallbackPaths) {
@@ -81,54 +65,11 @@ function matchRoute(path, routes) {
     }
   }
 
-  // Fallback route `*`
   const fallback = routes.find((r) => r.path === '*');
   if (fallback) return { route: fallback, match: null, params: {} };
 
   return null;
 }
-
-const runScriptModule = async (scriptPath, params, app) => {
-  console.log('here...');
-  const module = await import(`./${scriptPath}?t=${Date.now()}`);
-  if (typeof module.init === 'function') {
-    const actions = module.init(params) || {};
-
-    // before enter
-    // Handle beforeEnter
-    if (typeof actions.beforeEnter === 'function') {
-      try {
-        const allowed = actions.beforeEnter(params);
-        if (!allowed) {
-          app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
-          hideLoader();
-          return;
-        }
-      } catch (err) {
-        console.warn('[Frameless] Error in beforeEnter():', err);
-      }
-    }
-
-    console.log(actions, '<<<<<<<<');
-    requestAnimationFrame(() => {
-      if (typeof actions === 'object') {
-        bindActions(app, actions);
-        if (typeof actions.onMount === 'function') {
-          try {
-            requestAnimationFrame(() => actions.onMount({ app, params }));
-          } catch (err) {
-            console.warn('[MiniSPA] Error in onMount():', err);
-          }
-        }
-
-        // Store onDestroy for later cleanup
-
-        currentDestroy =
-          typeof actions?.onDestroy === 'function' ? actions?.onDestroy : null;
-      }
-    });
-  }
-};
 
 function showLoader() {
   const loader = document.getElementById('loader');
@@ -140,208 +81,195 @@ function hideLoader() {
   if (loader) loader.style.display = 'none';
 }
 
-// Slot Injection + Action Binding
-function htmlToDOM(str) {
+function shallowDiffAndPatch(parent, newChildren) {
+  const existing = [...parent.children];
+  const incoming = [...newChildren];
+
+  for (let i = 0; i < incoming.length; i++) {
+    const newNode = incoming[i];
+    const oldNode = existing[i];
+
+    if (!oldNode) {
+      parent.appendChild(newNode);
+    } else if (!newNode.isEqualNode(oldNode)) {
+      parent.replaceChild(newNode, oldNode);
+    }
+  }
+
+  for (let j = incoming.length; j < existing.length; j++) {
+    existing[j].remove();
+  }
+}
+
+function htmlToDOM(html) {
   const temp = document.createElement('div');
-  temp.innerHTML = str;
+  temp.innerHTML = html;
   return temp;
 }
 
 function injectSlots(layout, view) {
-  // Replace default slot
-  const mainSlot = layout.querySelector('slot');
-  if (mainSlot) {
-    mainSlot.replaceWith(...view.children);
-  }
-
-  // Named slots
-
-  layout.querySelectorAll('slot[name]').forEach((slot) => {
-    if (slot) {
+  const inject = (host, content) => {
+    host.querySelectorAll('slot[name]').forEach((slot) => {
       const name = slot.getAttribute('name');
-      const template = view.querySelector(`template[slot="${name}"]`);
-      if (template) {
-        const frag = template.content.cloneNode(true);
+      const tpl = content.querySelector(`template[slot="${name}"]`);
+      if (tpl) {
+        const frag = tpl.content.cloneNode(true);
+        injectSlots(frag, content);
         slot.replaceWith(frag);
+        return;
+      }
+      const node = content.querySelector(`[slot="${name}"]:not(template)`);
+      if (node) {
+        slot.replaceWith(node.cloneNode(true));
+      }
+    });
+
+    const defaultSlot = host.querySelector('slot:not([name])');
+    if (defaultSlot) {
+      const tpl = content.querySelector('template:not([slot])');
+      if (tpl) {
+        const frag = tpl.content.cloneNode(true);
+        injectSlots(frag, content);
+        defaultSlot.replaceWith(frag);
+        return;
+      }
+
+      const fallbackNodes = [...content.children].filter(
+        (el) => el.tagName !== 'TEMPLATE' && !el.hasAttribute('slot'),
+      );
+      if (fallbackNodes.length > 0) {
+        defaultSlot.replaceWith(...fallbackNodes.map((n) => n.cloneNode(true)));
       }
     }
-  });
+  };
+
+  inject(layout, view);
 }
 
-async function loadPage(app, route, params = {}, match = null) {
-  //  Run middleware
-  if (route.middleware) {
-    const result = await route.middleware(params);
-    if (!result) {
-      app.innerHTML = `<p>Access denied by middleware.</p>`;
-      hideLoader();
-      return;
+function applyScopedStyle(cssText, scopeId) {
+  const oldStyle = document.getElementById(scopeId);
+  if (oldStyle) oldStyle.remove();
+
+  const style = document.createElement('style');
+  style.id = scopeId;
+  style.textContent = cssText;
+  document.head.appendChild(style);
+}
+
+// Updated slotAwareRender with full support for:
+// ✡ layouts with <slot> + components
+// ✡ views with <template slot> + nested components
+// ✡ reactivity and hydration end-to-end
+
+export async function slotAwareRender({
+  app,
+  route,
+  viewHTML,
+  layoutHTML,
+  params,
+}) {
+  const viewDOM = htmlToDOM(viewHTML);
+  let finalDOM = viewDOM;
+
+  const props = params;
+  const context = { app, params, props };
+
+  let actions = {};
+
+  if (layoutHTML) {
+    const layoutDOM = htmlToDOM(layoutHTML);
+    injectSlots(layoutDOM, viewDOM);
+
+    await resolveChildComponents(layoutDOM, context);
+    finalDOM = layoutDOM;
+  }
+
+  if (route.styles || route.style) {
+    const stylePaths = Array.isArray(route.styles || route.style)
+      ? route.styles || route.style
+      : [route.style];
+
+    for (const stylePath of stylePaths) {
+      const res = await fetch(stylePath);
+      const css = await res.text();
+      applyScopedStyle(css, `scoped-style-${route.path}`);
     }
   }
 
-  // Call previous onDestroy if exists
-  try {
-    if (typeof currentDestroy === 'function') currentDestroy();
-  } catch (err) {
-    console.warn('[Frameless] Error in onDestroy():', err);
-  }
-  try {
-    showLoader();
-    app.classList.remove('fade-in');
+  const domClone = finalDOM.cloneNode(true);
 
-    const res = await fetch(route.view);
-    const htmlText = await res.text();
+  if (route.script || route.scripts) {
+    const scriptPaths = Array.isArray(route.scripts || route.script)
+      ? route.scripts || route.script
+      : [route.script];
 
-    // to track previous dom
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlText, 'text/html');
-    const content = doc.body;
+    const module = await import(`./${scriptPaths[0]}?t=${Date.now()}`);
+    if (typeof module.init === 'function') {
+      actions = (await module.init({ ...context, props })) || {};
 
-    //
-    const viewDOM = htmlToDOM(htmlText);
+      const template = actions.template;
 
-    let finalDOM = viewDOM;
-    if (route.layout) {
-      const layoutRes = await fetch(route.layout);
-      const layoutHTML = await layoutRes.text();
-      const layoutDOM = htmlToDOM(layoutHTML);
-
-      injectSlots(layoutDOM, viewDOM);
-      finalDOM = layoutDOM;
-    }
-
-    app.innerHTML = '';
-    requestAnimationFrame(() => {
-      [...finalDOM.children].forEach((el) =>
-        app.appendChild(el.cloneNode(true)),
-      );
-    });
-    // hydrateComponent(app, {});
-
-    // Auto-execute inline and external scripts
-    const scripts = content.querySelectorAll('script');
-    for (const oldScript of scripts) {
-      const newScript = document.createElement('script');
-
-      // External script with deduplication
-      if (oldScript.src) {
-        if (loadedScriptSrcs.has(oldScript.src)) continue;
-        newScript.src = oldScript.src;
-        loadedScriptSrcs.add(oldScript.src);
-      } else {
-        // Inline script
-        newScript.textContent = oldScript.textContent;
-      }
-
-      //  Preserve type (e.g., module)
-      if (oldScript.type) {
-        newScript.type = oldScript.type;
-      }
-
-      document.body.appendChild(newScript);
-    }
-
-    // Import scoped JS for this route
-    if (
-      (route.script && typeof route.script == 'string') ||
-      (route.scripts && typeof route.scripts == 'string')
-    ) {
-      const module = await import(`./${route.script}?t=${Date.now()}`);
-      console.log(module, 'cant reach');
-      if (typeof module.init === 'function') {
-        // actions and lifecycles or template strings
-        // are grouped to gether in the return object of our frmaeless functional component
-        const actions = module.init(params) || {};
-        const template = actions?.template;
-
-        let hydratedEl = null;
-
-        if (template) {
-          // Convert string template to DOM
-          const container = document.createElement('div');
-          container.innerHTML = template;
-          hydratedEl = container.firstElementChild;
-
-          if (hydratedEl) {
-            // Append to the app container
-            app.appendChild(hydratedEl);
-
-            // Optionally hydrate bindings, slots, etc.
-            if (typeof hydrateComponent === 'function') {
-              await hydrateComponent(
-                app,
-
-                { ...actions, ...params },
-              );
-            }
-          }
-        }
-
-        // before enter
-        // Handle beforeEnter
-        if (typeof actions.beforeEnter === 'function') {
-          try {
-            const allowed = actions.beforeEnter(params);
-            if (!allowed) {
-              app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
-              hideLoader();
-              return;
-            }
-          } catch (err) {
-            console.warn('[Frameless] Error in beforeEnter():', err);
-          }
-        }
-
-        console.log(actions, '<<<<<<<<');
-        requestAnimationFrame(() => {
-          if (typeof actions === 'object') {
-            bindActions(app, actions);
-            if (typeof actions.onMount === 'function') {
-              try {
-                requestAnimationFrame(() => actions.onMount({ app, params }));
-              } catch (err) {
-                console.warn('[MiniSPA] Error in onMount():', err);
-              }
-            }
-
-            // Store onDestroy for later cleanup
-            currentDestroy = () => {
-              // Call component destroy if exists
-              if (typeof actions.onDestroy === 'function') {
-                actions.onDestroy();
-              }
-              // Clean up rendered template
-              if (hydratedEl && hydratedEl.remove) {
-                hydratedEl.remove();
-              }
+      if (!actions.bindings) actions.bindings = {};
+      if (actions.props && actions.store) {
+        for (const key of Object.keys(actions.props)) {
+          if (!(key in actions.bindings)) {
+            actions.bindings[key] = (val) => {
+              if (val !== undefined) actions.store.state[key] = val;
+              return actions.store.state[key];
             };
-            currentDestroy =
-              typeof actions?.onDestroy === 'function'
-                ? actions?.onDestroy
-                : null;
           }
-        });
-      }
-    } else if (Array.isArray(route.script) || Array.isArray(route.scripts)) {
-      if (route.scripts) {
-        for (const scriptPath of route.scripts) {
-          await runScriptModule(scriptPath, params, app);
         }
-      } else if (route.script) {
-        await runScriptModule(route.script, params, app);
       }
-    }
 
-    // route on load before script executiom
-    route?.onLoad?.();
-    // Add transition
-    requestAnimationFrame(() => app.classList.add('fade-in'));
-  } catch (err) {
-    console.error(err);
-    app.innerHTML = `<h2>Error loading ${route.view}</h2>`;
-  } finally {
-    hideLoader();
+      if (template && typeof template === 'string') {
+        const container = document.createElement('div');
+        container.innerHTML = template;
+
+        for (const el of [...container.children]) {
+          const slot = el.getAttribute('slot') || null;
+
+          await hydrateComponent(el, { ...context, ...actions, props });
+          if (actions.store) setupReactivity(actions.store, el);
+
+          await resolveChildComponents(el, { ...context, ...actions, props });
+
+          const target = slot
+            ? domClone.querySelector(`slot[name="${slot}"]`)
+            : domClone.querySelector('slot:not([name])');
+
+          if (target) target.replaceWith(el);
+        }
+      }
+
+      requestAnimationFrame(() => {
+        actions.onMount?.({ ...context, ...actions, props });
+        window.__currentDestroy = () => actions.onDestroy?.();
+      });
+    }
   }
+
+  await hydrateComponent(domClone, { ...context, ...actions, props });
+  await resolveChildComponents(domClone, { ...context, ...actions, props });
+
+  requestAnimationFrame(() => {
+    shallowDiffAndPatch(app, domClone.children);
+  });
+
+  const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
+  for (const oldScript of doc.querySelectorAll('script')) {
+    const newScript = document.createElement('script');
+    if (oldScript.src) {
+      if (loadedScriptSrcs.has(oldScript.src)) continue;
+      newScript.src = oldScript.src;
+      loadedScriptSrcs.add(oldScript.src);
+    } else {
+      newScript.textContent = oldScript.textContent;
+    }
+    if (oldScript.type) newScript.type = oldScript.type;
+    document.body.appendChild(newScript);
+  }
+
+  route?.onLoad?.();
 }
 
 function handleRoute(app, routes) {
@@ -352,14 +280,10 @@ function handleRoute(app, routes) {
 
   const { path, params } = getRouteAndParams();
   const queryParams = params.queryParams;
-
-  // ✅ Use fallback path if hash is empty or equals DEFAULT_ROUTE
   let targetPath = path;
 
   if (!location.hash || path === DEFAULT_ROUTE) {
     targetPath = DEFAULT_ROUTE;
-
-    // ✅ Set hash if it's not already set
     if (!location.hash) {
       history.replaceState(null, '', `#${DEFAULT_ROUTE}`);
     }
@@ -370,18 +294,29 @@ function handleRoute(app, routes) {
   if (matched) {
     const { route, match, params: pathParams } = matched;
     const combinedParams = { ...queryParams, ...pathParams };
-
-    console.log(
-      '[Frameless] Matched route:',
-      route.path,
-      route,
-      combinedParams,
-      match,
-    );
     loadPage(app, route, combinedParams, match);
   } else {
-    console.warn('[Frameless] No matching route for:', targetPath);
     app.innerHTML = `<h2>404 - Not Found</h2>`;
+  }
+}
+
+async function loadPage(app, route, params = {}, match = null) {
+  try {
+    window.__currentDestroy?.();
+    const [viewRes, layoutRes] = await Promise.all([
+      fetch(route.view),
+      route.layout ? fetch(route.layout) : Promise.resolve({ text: () => '' }),
+    ]);
+
+    const [viewHTML, layoutHTML] = await Promise.all([
+      viewRes.text(),
+      layoutRes.text(),
+    ]);
+
+    await slotAwareRender({ app, route, viewHTML, layoutHTML, params });
+  } catch (err) {
+    console.error('Render error:', err);
+    app.innerHTML = `<h2>Error loading page</h2>`;
   }
 }
 

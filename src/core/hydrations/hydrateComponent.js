@@ -1,18 +1,49 @@
-import { hydrateInputsBindings } from '../bindings/hydrateInputs';
-import { resolveChildComponents } from '../components/resolveChildComponent';
-import { hydrateElmentAttibutesBindings } from '../bindings/hydrateBindings';
+import { setupReactivity } from '../hooks/basic';
 
-export function hydrateComponent(root, props = {}, computed = {}) {
-  // 1. Form input bindings
-  Object.keys(props).forEach((key) => {
-    hydrateInputsBindings(key, props[key], (val) => {
-      props[key] = val;
-    });
+export async function hydrateComponent(element, context = {}) {
+  if (element.dataset.hydrated) return;
+  element.dataset.hydrated = 'true';
+
+  const { store, bindings = {}, effects = [], actions = {} } = context;
+
+  if (store) {
+    setupReactivity(store, element);
+  }
+
+  for (const effect of effects) {
+    if (typeof effect === 'function') {
+      await effect({ element, context });
+    }
+  }
+
+  element.querySelectorAll('[data-bind-text]').forEach((el) => {
+    const key = el.dataset.bindText;
+    const fn = bindings[key];
+    if (typeof fn === 'function') el.textContent = fn();
   });
 
-  // element attributes bindings
-  hydrateElmentAttibutesBindings(root, props);
+  element.querySelectorAll('[data-model]').forEach((el) => {
+    const key = el.dataset.model;
+    const fn = bindings[key];
 
-  // 3. Resolve child components
-  resolveChildComponents(root);
+    // 👇 Add this here:
+    console.log('[hydrate:model]', { key, fn: typeof fn, value: fn?.() });
+
+    if (typeof fn === 'function') {
+      const current = fn();
+      if (el.value !== current) el.value = current;
+      el.addEventListener('input', (e) => fn(e.target.value));
+    }
+  });
+
+  element.querySelectorAll('[data-action]').forEach((el) => {
+    const { action, eventType = 'click' } = el.dataset;
+    const fn = actions[action];
+    if (typeof fn === 'function') {
+      el.addEventListener(eventType, (event) => {
+        event.preventDefault();
+        fn({ event, element: el, dataset: { ...el.dataset } });
+      });
+    }
+  });
 }
