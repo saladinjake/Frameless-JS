@@ -2,6 +2,7 @@
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
 import { setupReactivity } from './core/hooks/basic';
+import { resolveChildComponents } from './core/components/resolveChildComponent';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
@@ -84,35 +85,50 @@ function htmlToDOM(html) {
   temp.innerHTML = html;
   return temp;
 }
-
 function injectSlots(layout, view) {
-  layout.querySelectorAll('slot[name]').forEach((slot) => {
-    const name = slot.getAttribute('name');
-    const template = view.querySelector(`template[slot="${name}"]`);
-    if (template) {
-      const frag = template.content.cloneNode(true);
-      slot.replaceWith(frag);
-    }
-  });
+  const inject = (host, content) => {
+    // 1. Named slots
+    host.querySelectorAll('slot[name]').forEach((slot) => {
+      const name = slot.getAttribute('name');
 
-  const defaultSlot = layout.querySelector('slot:not([name])');
-  if (defaultSlot) {
-    const nonSlotted = [...view.children].filter(
-      (el) => !(el.tagName === 'TEMPLATE' && el.hasAttribute('slot')),
-    );
-    if (nonSlotted.length > 0) {
-      defaultSlot.replaceWith(...nonSlotted);
-    }
-  }
+      // Prefer <template slot="name">
+      const tpl = content.querySelector(`template[slot="${name}"]`);
+      if (tpl) {
+        const frag = tpl.content.cloneNode(true);
+        injectSlots(frag, content);
+        slot.replaceWith(frag);
+        return;
+      }
 
-  layout.querySelectorAll('template[slot]').forEach((tpl) => {
-    const nestedName = tpl.getAttribute('slot');
-    const nestedTarget = layout.querySelector(`slot[name="${nestedName}"]`);
-    if (nestedTarget) {
-      const frag = tpl.content.cloneNode(true);
-      nestedTarget.replaceWith(frag);
+      // Fallback: any non-template with slot="name"
+      const node = content.querySelector(`[slot="${name}"]:not(template)`);
+      if (node) {
+        slot.replaceWith(node.cloneNode(true));
+      }
+    });
+
+    // 2. Default unnamed slot
+    const defaultSlot = host.querySelector('slot:not([name])');
+    if (defaultSlot) {
+      const tpl = content.querySelector('template:not([slot])');
+      if (tpl) {
+        const frag = tpl.content.cloneNode(true);
+        injectSlots(frag, content);
+        defaultSlot.replaceWith(frag);
+        return;
+      }
+
+      const fallbackNodes = [...content.children].filter(
+        (el) => el.tagName !== 'TEMPLATE' && !el.hasAttribute('slot'),
+      );
+
+      if (fallbackNodes.length > 0) {
+        defaultSlot.replaceWith(...fallbackNodes.map((n) => n.cloneNode(true)));
+      }
     }
-  });
+  };
+
+  inject(layout, view);
 }
 
 function shallowDiffAndPatch(parent, newChildren) {
@@ -144,6 +160,12 @@ function applyScopedStyle(cssText, scopeId) {
   style.textContent = cssText;
   document.head.appendChild(style);
 }
+
+// Updated slotAwareRender with full support for:
+// ✡ layouts with <slot> + components
+// ✡ views with <template slot> + nested components
+// ✡ reactivity and hydration end-to-end
+
 export async function slotAwareRender({
   app,
   route,
@@ -157,6 +179,10 @@ export async function slotAwareRender({
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
     injectSlots(layoutDOM, viewDOM);
+
+    //  First hydration pass after slot injection
+    await resolveChildComponents(layoutDOM, {}); // Resolves <my-profile> etc. in slot content
+
     finalDOM = layoutDOM;
   }
 
@@ -173,8 +199,8 @@ export async function slotAwareRender({
   }
 
   const domClone = finalDOM.cloneNode(true);
-
   let actions = {};
+
   if (route.script || route.scripts) {
     const scriptPaths = Array.isArray(route.scripts || route.script)
       ? route.scripts || route.script
@@ -189,24 +215,20 @@ export async function slotAwareRender({
         const container = document.createElement('div');
         container.innerHTML = template;
 
-        const elements = [...container.children];
-        for (const el of elements) {
+        for (const el of [...container.children]) {
           const slot = el.getAttribute('slot') || null;
 
           await hydrateComponent(el, actions);
+          if (actions?.store) setupReactivity(actions.store, el);
 
-          // ✅ Setup reactivity BEFORE slotting
-          if (actions?.store) {
-            setupReactivity(actions.store, el);
-          }
+          //  Ensure child components in view's own template are hydrated too
+          await resolveChildComponents(el, actions);
 
           const target = slot
             ? domClone.querySelector(`slot[name="${slot}"]`)
             : domClone.querySelector('slot:not([name])');
 
-          if (target) {
-            target.replaceWith(el);
-          }
+          if (target) target.replaceWith(el);
         }
       }
 
@@ -217,13 +239,16 @@ export async function slotAwareRender({
     }
   }
 
+  //  Second pass for any dynamically attached late components
+  await hydrateComponent(domClone, actions);
+  await resolveChildComponents(domClone, actions);
+
   requestAnimationFrame(() => {
     shallowDiffAndPatch(app, domClone.children);
   });
 
   const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
-  const scripts = doc.querySelectorAll('script');
-  for (const oldScript of scripts) {
+  for (const oldScript of doc.querySelectorAll('script')) {
     const newScript = document.createElement('script');
     if (oldScript.src) {
       if (loadedScriptSrcs.has(oldScript.src)) continue;
@@ -232,7 +257,6 @@ export async function slotAwareRender({
     } else {
       newScript.textContent = oldScript.textContent;
     }
-
     if (oldScript.type) newScript.type = oldScript.type;
     document.body.appendChild(newScript);
   }

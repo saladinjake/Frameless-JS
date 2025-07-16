@@ -13,6 +13,22 @@ export async function hydrateComponent(element, context = {}) {
     }
   }
 
+  ///
+  element.querySelectorAll('[data-bind-text]').forEach((el) => {
+    const key = el.dataset.bindText;
+    const fn = bindings[key];
+    if (typeof fn === 'function') el.textContent = fn();
+  });
+
+  element.querySelectorAll('[data-model]').forEach((el) => {
+    const key = el.dataset.model;
+    const fn = bindings[key];
+    if (typeof fn === 'function') {
+      el.value = fn();
+      el.addEventListener('input', (e) => fn(e.target.value));
+    }
+  });
+
   element.querySelectorAll('[data-action]').forEach((el) => {
     const { action, eventType = 'click' } = el.dataset;
     const fn = actions[action];
