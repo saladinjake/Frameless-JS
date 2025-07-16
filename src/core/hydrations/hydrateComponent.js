@@ -1,18 +1,26 @@
-import { hydrateInputsBindings } from '../bindings/hydrateInputs';
-import { resolveChildComponents } from '../components/resolveChildComponent';
-import { hydrateElmentAttibutesBindings } from '../bindings/hydrateBindings';
+import { setupReactivity } from '../hooks/basic';
 
-export function hydrateComponent(root, props = {}, computed = {}) {
-  // 1. Form input bindings
-  Object.keys(props).forEach((key) => {
-    hydrateInputsBindings(key, props[key], (val) => {
-      props[key] = val;
-    });
+export async function hydrateComponent(element, context = {}) {
+  const { store, bindings = {}, effects = [], actions = {} } = context;
+
+  if (store) {
+    setupReactivity(store, element);
+  }
+
+  for (const effect of effects) {
+    if (typeof effect === 'function') {
+      await effect({ element, context });
+    }
+  }
+
+  element.querySelectorAll('[data-action]').forEach((el) => {
+    const { action, eventType = 'click' } = el.dataset;
+    const fn = actions[action];
+    if (typeof fn === 'function') {
+      el.addEventListener(eventType, (event) => {
+        event.preventDefault();
+        fn({ event, element: el, dataset: { ...el.dataset } });
+      });
+    }
   });
-
-  // element attributes bindings
-  hydrateElmentAttibutesBindings(root, props);
-
-  // 3. Resolve child components
-  resolveChildComponents(root);
 }

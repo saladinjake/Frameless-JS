@@ -1,30 +1,17 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
+import { setupReactivity } from './core/hooks/basic';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
-let currentDestroy = null;
+const currentDestroy = null;
 
 function getRouteAndParams() {
   const hash = decodeURIComponent(location.hash.slice(1));
   const [path = 'home', qs = ''] = hash.split('?');
   const params = Object.fromEntries(new URLSearchParams(qs));
   return { path, params };
-}
-
-function bindActions(app, handlers = {}) {
-  const elements = app.querySelectorAll('[data-action]');
-  elements.forEach((el) => {
-    const { action, eventType = null } = el.dataset;
-    const fn = handlers[action];
-    if (typeof fn !== 'function') return;
-
-    el.addEventListener(eventType != null ? eventType : 'click', (event) => {
-      event.preventDefault();
-      fn({ event, element: el, dataset: { ...el.dataset } });
-    });
-  });
 }
 
 function matchRoute(path, routes) {
@@ -92,8 +79,6 @@ function hideLoader() {
   if (loader) loader.style.display = 'none';
 }
 
-// Helpers
-
 function htmlToDOM(html) {
   const temp = document.createElement('div');
   temp.innerHTML = html;
@@ -101,118 +86,64 @@ function htmlToDOM(html) {
 }
 
 function injectSlots(layout, view) {
-  // Default unnamed slot
-  const defaultSlot = layout.querySelector('slot:not([name])');
-  if (defaultSlot) {
-    defaultSlot.replaceWith(...view.children);
-  }
-
-  // Named slots
   layout.querySelectorAll('slot[name]').forEach((slot) => {
     const name = slot.getAttribute('name');
-    const templates = view.querySelectorAll(`template[slot="${name}"]`);
-    if (templates.length > 0) {
-      const frag = document.createDocumentFragment();
-      templates.forEach((tpl) => {
-        frag.appendChild(tpl.content.cloneNode(true));
-      });
+    const template = view.querySelector(`template[slot="${name}"]`);
+    if (template) {
+      const frag = template.content.cloneNode(true);
       slot.replaceWith(frag);
+    }
+  });
+
+  const defaultSlot = layout.querySelector('slot:not([name])');
+  if (defaultSlot) {
+    const nonSlotted = [...view.children].filter(
+      (el) => !(el.tagName === 'TEMPLATE' && el.hasAttribute('slot')),
+    );
+    if (nonSlotted.length > 0) {
+      defaultSlot.replaceWith(...nonSlotted);
+    }
+  }
+
+  layout.querySelectorAll('template[slot]').forEach((tpl) => {
+    const nestedName = tpl.getAttribute('slot');
+    const nestedTarget = layout.querySelector(`slot[name="${nestedName}"]`);
+    if (nestedTarget) {
+      const frag = tpl.content.cloneNode(true);
+      nestedTarget.replaceWith(frag);
     }
   });
 }
 
-const runScriptModule = async (scriptFile, params, app) => {
-  const scriptPaths = scriptFile;
-  const hydratedTemplates = [];
-  let actions = {};
+function shallowDiffAndPatch(parent, newChildren) {
+  const existing = [...parent.children];
+  const incoming = [...newChildren];
 
-  for (const scriptPath of scriptPaths) {
-    if (!scriptPath) continue;
+  for (let i = 0; i < incoming.length; i++) {
+    const newNode = incoming[i];
+    const oldNode = existing[i];
 
-    const module = await import(`./${scriptPath}?t=${Date.now()}`);
-    if (typeof module.init === 'function') {
-      actions = module.init(params) || {};
-      const template = actions?.template;
-
-      if (typeof actions.beforeEnter === 'function') {
-        const allowed = actions.beforeEnter(params);
-        if (!allowed) {
-          app.innerHTML = `<p>Navigation blocked by beforeEnter()</p>`;
-          hideLoader();
-          return { hydratedTemplates, actions };
-        }
-      }
-
-      if (template && typeof template === 'string') {
-        const container = document.createElement('div');
-        container.innerHTML = template;
-        const templates = [...container.children];
-
-        for (const el of templates) {
-          const slotName = el.getAttribute?.('slot') || null;
-          await hydrateComponent(el, actions);
-
-          // Run any inline or external scripts inside the template
-          const scripts = el.querySelectorAll('script');
-          for (const oldScript of scripts) {
-            const newScript = document.createElement('script');
-            if (oldScript.src) {
-              if (loadedScriptSrcs.has(oldScript.src)) continue;
-              newScript.src = oldScript.src;
-              loadedScriptSrcs.add(oldScript.src);
-            } else {
-              newScript.textContent = oldScript.textContent;
-            }
-            if (oldScript.type) newScript.type = oldScript.type;
-            document.body.appendChild(newScript);
-          }
-
-          hydratedTemplates.push({ el, slot: slotName });
-        }
-      }
-
-      requestAnimationFrame(() => {
-        bindActions(app, actions);
-        actions.onMount?.({ app, params });
-
-        currentDestroy = () => {
-          actions.onDestroy?.();
-          hydratedTemplates.forEach(({ el }) => el.remove?.());
-        };
-      });
+    if (!oldNode) {
+      parent.appendChild(newNode);
+    } else if (!newNode.isEqualNode(oldNode)) {
+      parent.replaceChild(newNode, oldNode);
     }
   }
 
-  return { hydratedTemplates, actions };
-};
-
-async function loadPage(app, route, params = {}, match = null) {
-  try {
-    window.__currentDestroy?.();
-
-    const [viewRes, layoutRes] = await Promise.all([
-      fetch(route.view),
-      route.layout ? fetch(route.layout) : Promise.resolve({ text: () => '' }),
-    ]);
-
-    const [viewHTML, layoutHTML] = await Promise.all([
-      viewRes.text(),
-      layoutRes.text(),
-    ]);
-
-    await slotAwareRender({
-      app,
-      route,
-      viewHTML,
-      layoutHTML,
-      params,
-    });
-  } catch (err) {
-    console.error('Render error:', err);
-    app.innerHTML = `<h2>Error loading page</h2>`;
+  for (let j = incoming.length; j < existing.length; j++) {
+    existing[j].remove();
   }
 }
 
+function applyScopedStyle(cssText, scopeId) {
+  const oldStyle = document.getElementById(scopeId);
+  if (oldStyle) oldStyle.remove();
+
+  const style = document.createElement('style');
+  style.id = scopeId;
+  style.textContent = cssText;
+  document.head.appendChild(style);
+}
 export async function slotAwareRender({
   app,
   route,
@@ -223,18 +154,26 @@ export async function slotAwareRender({
   const viewDOM = htmlToDOM(viewHTML);
   let finalDOM = viewDOM;
 
-  // 1. Parse layout and inject view template slots (if any)
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
-    injectSlots(layoutDOM, viewDOM); // from view.html into layout slots
+    injectSlots(layoutDOM, viewDOM);
     finalDOM = layoutDOM;
   }
 
-  // 2. Clone DOM before rendering
+  if (route.styles || route.style) {
+    const stylePaths = Array.isArray(route.styles || route.style)
+      ? route.styles || route.style
+      : [route.style];
+
+    for (const stylePath of stylePaths) {
+      const res = await fetch(stylePath);
+      const css = await res.text();
+      applyScopedStyle(css, `scoped-style-${route.path}`);
+    }
+  }
+
   const domClone = finalDOM.cloneNode(true);
 
-  // 3. If there are scripts/modules, run and extract hydratedTemplates
-  const hydratedTemplates = [];
   let actions = {};
   if (route.script || route.scripts) {
     const scriptPaths = Array.isArray(route.scripts || route.script)
@@ -243,7 +182,7 @@ export async function slotAwareRender({
 
     const module = await import(`./${scriptPaths[0]}?t=${Date.now()}`);
     if (typeof module.init === 'function') {
-      actions = module.init(params) || {};
+      actions = module.init({ params, app }) || {};
       const template = actions.template;
 
       if (template && typeof template === 'string') {
@@ -253,9 +192,14 @@ export async function slotAwareRender({
         const elements = [...container.children];
         for (const el of elements) {
           const slot = el.getAttribute('slot') || null;
+
           await hydrateComponent(el, actions);
 
-          // Inject into the domClone before anything is rendered
+          // ✅ Setup reactivity BEFORE slotting
+          if (actions?.store) {
+            setupReactivity(actions.store, el);
+          }
+
           const target = slot
             ? domClone.querySelector(`slot[name="${slot}"]`)
             : domClone.querySelector('slot:not([name])');
@@ -268,25 +212,15 @@ export async function slotAwareRender({
 
       requestAnimationFrame(() => {
         actions.onMount?.({ app, params });
-
-        // set onDestroy handler
-        window.__currentDestroy = () => {
-          actions.onDestroy?.();
-        };
+        window.__currentDestroy = () => actions.onDestroy?.();
       });
     }
   }
 
-  // 4. Replace <slot> tags with actual hydrated templates done above
-
-  // 5. Replace app content with final DOM
-  app.innerHTML = '';
   requestAnimationFrame(() => {
-    [...domClone.children].forEach((el) => app.appendChild(el.cloneNode(true)));
-    app.classList.add('fade-in');
+    shallowDiffAndPatch(app, domClone.children);
   });
 
-  // 6. Execute inline/external scripts from viewHTML or layout
   const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
   const scripts = doc.querySelectorAll('script');
   for (const oldScript of scripts) {
@@ -328,18 +262,29 @@ function handleRoute(app, routes) {
   if (matched) {
     const { route, match, params: pathParams } = matched;
     const combinedParams = { ...queryParams, ...pathParams };
-
-    console.log(
-      '[Frameless] Matched route:',
-      route.path,
-      route,
-      combinedParams,
-      match,
-    );
     loadPage(app, route, combinedParams, match);
   } else {
-    console.warn('[Frameless] No matching route for:', targetPath);
     app.innerHTML = `<h2>404 - Not Found</h2>`;
+  }
+}
+
+async function loadPage(app, route, params = {}, match = null) {
+  try {
+    window.__currentDestroy?.();
+    const [viewRes, layoutRes] = await Promise.all([
+      fetch(route.view),
+      route.layout ? fetch(route.layout) : Promise.resolve({ text: () => '' }),
+    ]);
+
+    const [viewHTML, layoutHTML] = await Promise.all([
+      viewRes.text(),
+      layoutRes.text(),
+    ]);
+
+    await slotAwareRender({ app, route, viewHTML, layoutHTML, params });
+  } catch (err) {
+    console.error('Render error:', err);
+    app.innerHTML = `<h2>Error loading page</h2>`;
   }
 }
 

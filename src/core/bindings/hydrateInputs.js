@@ -1,6 +1,15 @@
-import { getDeep, setDeep } from '../hooks';
-
 import { getNestedValue, setNestedValue } from '../utils/index';
+
+export function getDeep(obj, path) {
+  return path.split('.').reduce((acc, part) => acc?.[part], obj);
+}
+
+export function setDeep(obj, path, value) {
+  const parts = path.split('.');
+  const last = parts.pop();
+  const target = parts.reduce((acc, part) => (acc[part] ??= {}), obj);
+  target[last] = value;
+}
 
 export function hydrateInputsBindings(key, value, setter) {
   const inputs = document.querySelectorAll(`[data-model="${key}"]`);
