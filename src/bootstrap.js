@@ -3,7 +3,6 @@
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
 import { setupReactivity, bind, watchEffect } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
-import { bindPropsToStore, setupBindingReactivity } from './core/utils';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
@@ -160,6 +159,7 @@ function applyScopedStyle(cssText, scopeId) {
 // ✡ layouts with <slot> + components
 // ✡ views with <template slot> + nested components
 // ✡ reactivity and hydration end-to-end
+
 export async function slotAwareRender({
   app,
   route,
@@ -175,14 +175,12 @@ export async function slotAwareRender({
   let actions = {};
   let module;
 
-  // 1. Inject layout if needed
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
-    injectSlots(layoutDOM, viewDOM); // inject <slot> content here
+    injectSlots(layoutDOM, viewDOM);
     finalDOM = layoutDOM;
   }
 
-  // 2. Load styles
   if (route.styles || route.style) {
     const stylePaths = Array.isArray(route.styles || route.style)
       ? route.styles || route.style
@@ -194,11 +192,9 @@ export async function slotAwareRender({
     }
   }
 
-  // 3. Render View
   const renderView = async () => {
     const domClone = finalDOM.cloneNode(true);
 
-    // 3a. Load and execute view script
     if (route.script || route.scripts) {
       const scriptPaths = Array.isArray(route.scripts || route.script)
         ? route.scripts || route.script
@@ -208,8 +204,8 @@ export async function slotAwareRender({
 
       if (typeof module.init === 'function') {
         actions = (await module.init({ ...baseContext })) || {};
-
         const template = actions.template;
+
         if (template && typeof template === 'string') {
           const container = document.createElement('div');
           container.innerHTML = template;
@@ -227,22 +223,18 @@ export async function slotAwareRender({
               ? domClone.querySelector(`slot[name="${slot}"]`)
               : domClone.querySelector('slot:not([name])');
 
-            if (target) {
-              target.replaceWith(el);
-            }
+            if (target) target.replaceWith(el);
           }
         }
 
         requestAnimationFrame(() => {
           actions.onMount?.({ ...baseContext, ...actions, props });
-          setupBindingReactivity(actions.store, app);
-
+          setupReactivity(actions.store, app);
           window.__currentDestroy = () => actions.onDestroy?.();
         });
       }
     }
 
-    // 3b. 🌟 🌟 Critical: Hydrate and resolve AFTER slot fill
     await hydrateComponent(domClone, {
       ...baseContext,
       ...actions,
@@ -255,7 +247,6 @@ export async function slotAwareRender({
       props: { ...props },
     });
 
-    // 4. Patch DOM
     requestAnimationFrame(() => {
       shallowDiffAndPatch(app, domClone.children);
       [...app.children].forEach((child) => {
@@ -263,7 +254,7 @@ export async function slotAwareRender({
       });
     });
 
-    // 5. Inline Scripts
+    // Run inline scripts
     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
     for (const oldScript of doc.querySelectorAll('script')) {
       const newScript = document.createElement('script');
@@ -283,16 +274,24 @@ export async function slotAwareRender({
 
   await renderView();
 
+  // Re-run renderView when props or store changes
   watchEffect({
     props,
     store: actions.store,
-    callback: async ({ props, state }) => {
-      console.log('[slotAwareRender] Watch triggered', { props, state });
+    callback: async ({ props: newProps, state }) => {
+      if (typeof actions.onPropsChanged === 'function') {
+        await actions.onPropsChanged({
+          props: newProps,
+          state,
+          context: { ...baseContext, ...actions },
+        });
+      }
+
+      console.log('[slotAwareRender] Watch triggered', { newProps, state });
       await renderView();
     },
   });
 }
-
 function handleRoute(app, routes) {
   if (location.hash === '#') {
     history.replaceState(null, '', `#${DEFAULT_ROUTE}`);
@@ -324,17 +323,41 @@ function handleRoute(app, routes) {
 async function loadPage(app, route, params = {}, match = null) {
   try {
     window.__currentDestroy?.();
-    const [viewRes, layoutRes] = await Promise.all([
-      fetch(route.view),
-      route.layout ? fetch(route.layout) : Promise.resolve({ text: () => '' }),
-    ]);
+
+    const resolveContent = async (input) => {
+      if (!input) return '';
+
+      // Function (dynamic import or async loader)
+      if (typeof input === 'function') {
+        const result = await input();
+        return typeof result === 'string' ? result : result?.default || '';
+      }
+
+      // Inline HTML string
+      if (typeof input === 'string') {
+        const isHTML = /<\/?[a-z][\s\S]*>/i.test(input.trim());
+        if (isHTML) return input;
+
+        // Treat as a file path
+        return fetch(input).then((res) => res.text());
+      }
+
+      return '';
+    };
 
     const [viewHTML, layoutHTML] = await Promise.all([
-      viewRes.text(),
-      layoutRes.text(),
+      resolveContent(route.view),
+      resolveContent(route.layout),
     ]);
 
-    await slotAwareRender({ app, route, viewHTML, layoutHTML, params });
+    await slotAwareRender({
+      app,
+      route,
+      viewHTML,
+      layoutHTML,
+      params,
+      match,
+    });
   } catch (err) {
     console.error('Render error:', err);
     app.innerHTML = `<h2>Error loading page</h2>`;

@@ -31,5 +31,8 @@ export function init({ props }) {
     onDestroy() {
       console.log('[my-profile] destroyed');
     },
+    onPropsChange(newProps, oldState) {
+      console.log('[my-profile] onMount props', props);
+    },
   };
 }

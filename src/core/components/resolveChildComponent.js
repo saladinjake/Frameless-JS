@@ -1,7 +1,7 @@
 import { hydrateComponent } from '../hydrations/hydrateComponent';
 import { setupReactivity, watchEffect } from '../hooks/basic';
 import { getComponentLoader } from './defineComponent';
-import { bindPropsToStore } from '../utils';
+import { bindPropsToStore, setupBindingReactivity } from '../utils';
 
 const nativeTags = new Set([
   'html',
@@ -74,8 +74,10 @@ function isCustomComponent(tagName) {
 function extractProps(el) {
   const props = {};
   for (const attr of el.attributes) {
-    const key = attr.name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    props[key] = attr.value;
+    let name = attr.name;
+    if (name.startsWith(':')) name = name.slice(1); // allow :prop
+    name = name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    props[name] = attr.value;
   }
   return props;
 }
@@ -96,13 +98,12 @@ export async function resolveChildComponents(root, parentContext = {}) {
       const init = mod?.init;
       if (typeof init !== 'function') continue;
 
-      const currentProps = extractProps(el); // Fresh props per component
-
+      const currentProps = extractProps(el);
+      console.log(currentProps, 'changeing...');
       const instance = await init({ ...parentContext, props: currentProps });
       if (!instance) continue;
 
-      // Ensure props update store (if not already defined)
-      if (instance?.store?.state) {
+      if (instance.store?.state) {
         for (const [key, val] of Object.entries(currentProps)) {
           if (typeof instance.store.state[key] === 'undefined') {
             instance.store.setState(key, val);
@@ -110,17 +111,18 @@ export async function resolveChildComponents(root, parentContext = {}) {
         }
       }
 
-      bindPropsToStore(instance); // One-time binding setup
+      bindPropsToStore(instance);
 
-      // Watch props → allow reactivity from parent
       watchEffect({
         props: currentProps,
         store: instance.store,
         callback: ({ props, state }) => {
-          // Optional: update missing props into store
           for (const [key, val] of Object.entries(props)) {
+            console.log(currentProps, props, key, val, '..............');
             if (typeof state[key] === 'undefined') {
               instance.store.setState(key, val);
+              props[key] = state[key];
+              currentProps[key] = state[key];
             }
           }
 
@@ -130,7 +132,6 @@ export async function resolveChildComponents(root, parentContext = {}) {
         },
       });
 
-      // Render component
       const wrapper = document.createElement('div');
       wrapper.innerHTML = `<div>${instance.template}</div>`;
       const compRoot = wrapper.firstElementChild;
@@ -138,17 +139,13 @@ export async function resolveChildComponents(root, parentContext = {}) {
       const componentContext = {
         ...parentContext,
         ...instance,
-        props: currentProps, // Scoped to this component
+        props: currentProps,
         bindings: instance.bindings || {},
       };
 
-      // Hydrate
-      for (const node of [...compRoot.children]) {
-        if (instance.store) setupReactivity(instance.store, compRoot);
-        await hydrateComponent(compRoot, componentContext);
-      }
+      if (instance.store) setupReactivity(instance.store, compRoot);
+      await hydrateComponent(compRoot, componentContext);
 
-      // Inject slot content
       for (const tpl of [...el.children]) {
         if (tpl.tagName === 'TEMPLATE') {
           const name = tpl.getAttribute('slot');
@@ -156,18 +153,21 @@ export async function resolveChildComponents(root, parentContext = {}) {
             ? compRoot.querySelector(`slot[name="${name}"]`)
             : compRoot.querySelector('slot:not([name])');
 
-          if (target) target.replaceWith(tpl.content.cloneNode(true));
+          if (target) {
+            target.replaceWith(tpl.content.cloneNode(true));
+          }
         }
       }
 
       await resolveChildComponents(compRoot, componentContext);
 
-      // Replace <custom-component> with its DOM
       const hydratedChildren = [...compRoot.children];
       el.replaceWith(...hydratedChildren);
 
       hydratedChildren.forEach((child) => {
         if (instance.store) setupReactivity(instance.store, child);
+        console.log(instance, '.............');
+        setupBindingReactivity(instance.store, child);
       });
 
       if (typeof instance.onMount === 'function') {
