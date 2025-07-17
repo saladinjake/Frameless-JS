@@ -2,6 +2,58 @@ import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import eslint from 'vite-plugin-eslint';
 
+import fsp from "fs/promises"
+
+const htmlFileRegex =/\.html$/
+const postFixRe = /[?#].*$/s;
+const postFix ="?.html-import";
+
+function cleanUrl(url){
+  return url.replace(postFixRe,'')
+}
+
+const htmlImportBuild  = () => ({
+  name:"html-import:build",
+  enforce:"pre",
+  apply:"build",
+  async resolve(id, importer, options){
+    if(htmlFileRegex.test(id) && !options){
+      let res = await this.resolve(id, importer, {
+        skipSelf: true,
+        ...options
+      })
+
+      if(!res || res.external) return  res
+      return res.id + postfix
+    }
+
+
+  },
+
+  async load(id){
+    if(!id.endsWith(postfix)) return;
+    let htmlContent = await fsp.readFile(cleanUrl(id))
+
+    // do stuff with html file content buffer
+
+    return `export default ${JSON.stringify(htmlContent.toString('utf-8'))}`
+  }
+})
+
+function htmlImportServe(){
+  return {
+    name:"html-import:serve",
+    apply: "serve",
+    transform(src,id){
+      if(htmlFileRegex.test(id)){
+        return {
+          code: `export default ${JSON.stringify(src)}`
+        }
+      }
+    }
+  }
+}
+
 export default defineConfig({
   publicDir: 'public',
   root: './',
@@ -39,6 +91,7 @@ export default defineConfig({
       cache: false,
       fix: true,
     }),
-    //  htmlImport(),
+   htmlImportBuild(),
+   htmlImportServe()
   ],
 });

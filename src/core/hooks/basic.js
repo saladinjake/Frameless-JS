@@ -1,31 +1,39 @@
 // 1. Minimal reactive store
-export function useStore(initial = {}) {
-  const listeners = new Map();
-
-  const notify = (key, val) => {
-    (listeners.get(key) || []).forEach((cb) => cb(val));
-  };
+export function useStore(initialState = {}) {
+  const subscribers = new Map(); // key → [fns]
 
   const state = new Proxy(
-    { ...initial },
+    { ...initialState },
     {
-      set(target, key, val) {
-        if (target[key] !== val) {
-          target[key] = val;
-          notify(key, val);
+      get(target, key) {
+        return target[key];
+      },
+      set(target, key, value) {
+        if (target[key] !== value) {
+          target[key] = value;
+          notify(key); // notify per key
         }
         return true;
       },
     },
   );
 
-  const subscribe = (key, cb) => {
-    if (!listeners.has(key)) listeners.set(key, []);
-    listeners.get(key).push(cb);
-    cb(state[key]);
-  };
+  function notify(key) {
+    const fns = subscribers.get(key) || [];
+    fns.forEach((fn) => fn(state[key]));
+  }
 
-  return { state, subscribe };
+  return {
+    state,
+    setState(key, val) {
+      state[key] = val;
+    },
+    subscribe(key, fn) {
+      if (!subscribers.has(key)) subscribers.set(key, []);
+      subscribers.get(key).push(fn);
+      fn(state[key]); // initial emit
+    },
+  };
 }
 
 export function usePropsStore(initial = {}, fallback = {}) {
@@ -89,59 +97,61 @@ export function bind(store) {
     });
   });
 }
-
 export function setupReactivity(store, root = document) {
   const all = (sel) => root.querySelectorAll(sel);
 
-  // Unified: data-bind + data-model
   all('[data-bind], [data-model]').forEach((el) => {
     const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
+
+    // Input → store
     el.addEventListener('input', (e) => {
-      store.state[key] = e.target.value;
+      store.setState(key, e.target.value);
     });
+
+    // store → DOM
     store.subscribe(key, (val) => {
-      if (el.value !== val) el.value = val;
+      if (el.value !== val) el.value = val ?? '';
     });
   });
 
-  // Text content binding
   all('[data-bind-text]').forEach((el) => {
     const key = el.getAttribute('data-bind-text');
-    store.subscribe(key, (val) => (el.textContent = val));
+    store.subscribe(key, (val) => {
+      el.textContent = val ?? '';
+    });
   });
 
-  // Attribute bindings: data-bind-attr="src:image, alt:desc"
   all('[data-bind-attr]').forEach((el) => {
-    const attrMap = el.getAttribute('data-bind-attr').split(',');
-    attrMap.forEach((pair) => {
+    const pairs = el.getAttribute('data-bind-attr').split(',');
+    pairs.forEach((pair) => {
       const [attr, key] = pair.trim().split(':');
       store.subscribe(key, (val) => el.setAttribute(attr, val));
     });
   });
 }
-// hooks/watchEffect.js
 
-export function watchEffect({ store, props = {}, callback }) {
-  if (!store || typeof store.subscribe !== 'function') return;
+export function watchEffect({ props = {}, store, callback }) {
+  if (!store || typeof callback !== 'function') return;
 
-  let oldState = { ...store.state };
+  let lastProps = JSON.stringify(props);
+  let lastState = JSON.stringify(store.state);
 
-  const trigger = () => {
-    const newState = { ...store.state };
-    const changed = Object.keys(newState).some(
-      (key) => newState[key] !== oldState[key],
-    );
+  const checkForChanges = () => {
+    const currentProps = JSON.stringify(props);
+    const currentState = JSON.stringify(store.state);
 
-    if (changed) {
-      oldState = newState;
-      callback({ props, state: newState });
+    if (currentProps !== lastProps || currentState !== lastState) {
+      lastProps = currentProps;
+      lastState = currentState;
+      callback({ props, state: store.state });
     }
   };
 
-  for (const key of Object.keys(store.state)) {
-    store.subscribe(key, trigger);
-  }
+  // Subscribe to each store key
+  Object.keys(store.state).forEach((key) => {
+    store.subscribe(key, checkForChanges);
+  });
 
-  // Trigger once on init
-  trigger();
+  // Initial run
+  callback({ props, state: store.state });
 }

@@ -201,7 +201,7 @@ export default class Router {
       console.error(err);
       this.app.innerHTML = `<h2>Error loading view</h2>`;
     } finally {
-      this.hideLoader(); // 👉 Hide spinner when done
+      this.hideLoader(); // Hide spinner when done
     }
   }
 

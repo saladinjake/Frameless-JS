@@ -1,40 +1,38 @@
-import { useStore, usePropsStore, watchEffect } from '../../core/hooks/basic';
-import { syncStoreAndProps } from '../../core/utils';
+import { useStore, watchEffect } from '../../core/hooks/basic';
 
 export function init({ props }) {
   const store = useStore({
-    bio: props?.bio,
+    bio: props?.bio || '',
   });
-
-  setTimeout(() => {
-    store.state.bio = 'Updated after 2s';
-  }, 2000);
 
   watchEffect({
     props,
     store,
     callback: ({ props, state }) => {
-      console.log('[watchEffect triggered]', { props, state });
-      // You can re-render or update something here
+      console.log('[watchEffect:my-profile]', { props, state });
+      store.setState({ ...state, bio: state.bio });
     },
   });
 
   return {
     store,
-    props,
     template: `
       <div>
         <h4>My Profile Component</h4>
-        <input type="text" data-model="bio"  />
+        <input type="text" data-model="bio" />
         <p>Live bio: <span data-bind-text="bio"></span></p>
       </div>
     `,
-    onMount() {
-      console.log('[my-profile] mounted', props);
-      syncStoreAndProps(store, props, 3000);
+    onMount({ props }) {
+      console.log('[my-profile] onMount props', props);
+
+      store.setState({ ...store.state, bio: props.bio });
     },
     onDestroy() {
       console.log('[my-profile] destroyed');
+    },
+    onPropsChange(newProps, oldState) {
+      console.log('[my-profile] onMount props', props);
     },
   };
 }

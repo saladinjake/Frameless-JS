@@ -9,10 +9,39 @@ function checkLoginStatus(boolVal) {
   return isAuth;
 }
 
+export async function loadTemplate(path) {
+  try {
+    // Attempt to load from public folder
+    const res = await fetch(path);
+    if (!res.ok) throw new Error('Not found in public');
+    return await res.text();
+  } catch (e) {
+    console.warn(`[TemplateLoader] Falling back to src for: ${path}`);
+
+    // Use Vite dynamic glob import from src (non-eager, async)
+    const pages = import.meta.glob('/src/**/*.{html,txt}', {
+      as: 'raw',
+      eager: false,
+    });
+
+    const filename = path.split('/').pop() || '';
+    const matchedKey = Object.keys(pages).find((key) =>
+      key.endsWith(`/${filename}`),
+    );
+
+    if (!matchedKey) {
+      throw new Error(`Template '${filename}' not found in src fallback`);
+    }
+
+    // Call the lazy-loaded function
+    return pages[matchedKey]();
+  }
+}
+
 export const routes = [
   {
     path: 'home',
-    view: './views/home.html',
+    view: () => loadTemplate('./views/home.html'),
     onLoad: () => console.log('Home loaded'),
     layout: './views/layouts/default.html',
     scripts: ['./modules/home.js'], // accepts array of string

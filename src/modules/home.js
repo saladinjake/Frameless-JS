@@ -11,11 +11,6 @@ export function init({ props = {} }) {
     image: 'https://placekitten.com/200/200',
   });
 
-  // Just change name after 3s to prove it's reactive
-  setTimeout(() => {
-    store.state.name = 'Juwa 🚀';
-  }, 3000);
-
   return {
     store,
     template: `
@@ -24,10 +19,10 @@ export function init({ props = {} }) {
      <div slot="header">Main Section</div>
       <div slot="sidebar">
        
-        <my-profile bio="this is a demo"></my-profile>
+        <my-profile :bio="this is a demo"></my-profile>
       </div>
 
-      <div>
+      <div style="margin-top:20px">
        
         <label>Your Name:</label>
         <h3>Hello, <strong data-bind-text="name"></strong>!</h3>
@@ -41,12 +36,14 @@ export function init({ props = {} }) {
 </template>
 
 <!-- Type 2: Component slot -->
-<my-profile slot="more2"></my-profile>
+<div slot="more2">
+  another slot method
+</div>
 
 <!-- Type 3: Fallback unnamed content -->
 <div>
   <p>This is default content in the unnamed slot</p>
-     <my-profile></my-profile>
+   
 </div>
       </main>
     `,

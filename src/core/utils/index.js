@@ -45,3 +45,65 @@ export function syncStoreAndProps(store, props = {}, delay = 3000) {
     }
   }, delay);
 }
+
+export function syncPropsToStore(instance, props = {}) {
+  if (!instance?.store?.state) return;
+
+  const state = instance.store.state;
+  instance.__syncedKeys = instance.__syncedKeys || new Set();
+
+  for (const [key, value] of Object.entries(props)) {
+    const current = state[key];
+
+    if (
+      value !== undefined &&
+      current !== value &&
+      !instance.__syncedKeys.has(key)
+    ) {
+      state[key] = value;
+      instance.__syncedKeys.add(key);
+      console.log(` [sync] ${key} =`, value);
+    } else {
+      console.log(`[skip sync] ${key} already set or undefined`);
+    }
+  }
+}
+export function setupBindingReactivity(store, rootEl) {
+  const elements = rootEl.querySelectorAll('[data-bind], [data-model]');
+
+  elements.forEach((el) => {
+    const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
+
+    // Set up per-key subscription
+    store.subscribe(key, (value) => {
+      // Update input-type elements
+      if (
+        el.tagName === 'INPUT' ||
+        el.tagName === 'TEXTAREA' ||
+        el.tagName === 'SELECT'
+      ) {
+        if (el.value !== value) {
+          el.value = value ?? '';
+        } else {
+          console.log(`[INPUT] No change for key "${key}" →`, value);
+        }
+
+        // For data-model, two-way bind input → store
+        if (el.hasAttribute('data-model')) {
+          el.addEventListener('input', (e) => {
+            if (store.state[key] !== e.target.value) {
+              store.setState(key, e.target.value);
+            }
+          });
+        }
+      } else {
+        // Update non-input elements (innerText)
+        if (el.textContent !== value) {
+          el.textContent = value ?? '';
+        } else {
+          console.log(`[TEXT] No change for key "${key}" →`, value);
+        }
+      }
+    });
+  });
+}

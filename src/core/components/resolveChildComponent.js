@@ -1,7 +1,7 @@
 import { hydrateComponent } from '../hydrations/hydrateComponent';
-import { setupReactivity } from '../hooks/basic';
+import { setupReactivity, watchEffect } from '../hooks/basic';
 import { getComponentLoader } from './defineComponent';
-import { bindPropsToStore } from '../utils';
+import { bindPropsToStore, setupBindingReactivity } from '../utils';
 
 const nativeTags = new Set([
   'html',
@@ -71,32 +71,18 @@ function isCustomComponent(tagName) {
   return !nativeTags.has(tag) && (tag.includes('-') || /[A-Z]/.test(tagName));
 }
 
-function toKebabCase(str) {
-  return str
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/[\s_]+/g, '-')
-    .toLowerCase();
-}
-
-const componentPropsMap = new WeakMap();
-const componentPropsCache = new Map();
-
 function extractProps(el) {
   const props = {};
   for (const attr of el.attributes) {
-    const key = attr.name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    props[key] = attr.value;
+    let name = attr.name;
+    if (name.startsWith(':')) name = name.slice(1); // allow :prop
+    name = name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    props[name] = attr.value;
   }
   return props;
 }
 
-function getComponentKey(el) {
-  const tag = el.tagName.toLowerCase();
-  const slot = el.getAttribute('slot') || '';
-  return `${tag}::${slot}`;
-}
-
-export async function resolveChildComponents(root, context = {}) {
+export async function resolveChildComponents(root, parentContext = {}) {
   const customTags = [...root.querySelectorAll('*')].filter((el) =>
     isCustomComponent(el.tagName),
   );
@@ -113,43 +99,50 @@ export async function resolveChildComponents(root, context = {}) {
       if (typeof init !== 'function') continue;
 
       const currentProps = extractProps(el);
-      const key = getComponentKey(el);
-      const previousProps = componentPropsCache.get(key) || {};
-      const mergedProps = { ...previousProps, ...currentProps };
+      console.log(currentProps, 'changeing...');
+      const instance = await init({ ...parentContext, props: currentProps });
+      if (!instance) continue;
 
-      componentPropsCache.set(key, mergedProps);
-
-      console.log('resolveChild', { tagName, mergedProps });
-
-      const instance = await init({ ...context, props: mergedProps });
-      // 🧠 Sync props → store.state (but don’t override)
-      if (instance?.store?.state) {
-        for (const [key, val] of Object.entries(mergedProps)) {
+      if (instance.store?.state) {
+        for (const [key, val] of Object.entries(currentProps)) {
           if (typeof instance.store.state[key] === 'undefined') {
-            instance.store.state[key] = val;
+            instance.store.setState(key, val);
           }
         }
       }
 
-      bindPropsToStore(instance); // Create data-model compatible bindings
+      bindPropsToStore(instance);
 
-      if (!instance?.template) continue;
+      watchEffect({
+        props: currentProps,
+        store: instance.store,
+        callback: ({ props, state }) => {
+          for (const [key, val] of Object.entries(props)) {
+            console.log(currentProps, props, key, val, '..............');
+            if (typeof state[key] === 'undefined') {
+              instance.store.setState(key, val);
+            }
+          }
+
+          if (typeof instance.onPropsChanged === 'function') {
+            instance.onPropsChanged({ props, state });
+          }
+        },
+      });
 
       const wrapper = document.createElement('div');
       wrapper.innerHTML = `<div>${instance.template}</div>`;
       const compRoot = wrapper.firstElementChild;
 
       const componentContext = {
-        ...context,
+        ...parentContext,
         ...instance,
-        props: mergedProps,
+        props: currentProps,
         bindings: instance.bindings || {},
       };
 
-      for (const node of [...compRoot.children]) {
-        if (instance.store) setupReactivity(instance.store, node);
-        await hydrateComponent(node, componentContext);
-      }
+      if (instance.store) setupReactivity(instance.store, compRoot);
+      await hydrateComponent(compRoot, componentContext);
 
       for (const tpl of [...el.children]) {
         if (tpl.tagName === 'TEMPLATE') {
@@ -158,22 +151,30 @@ export async function resolveChildComponents(root, context = {}) {
             ? compRoot.querySelector(`slot[name="${name}"]`)
             : compRoot.querySelector('slot:not([name])');
 
-          if (target) target.replaceWith(tpl.content.cloneNode(true));
+          if (target) {
+            target.replaceWith(tpl.content.cloneNode(true));
+          }
         }
       }
 
       await resolveChildComponents(compRoot, componentContext);
 
-      el.replaceWith(...compRoot.children);
+      const hydratedChildren = [...compRoot.children];
+      el.replaceWith(...hydratedChildren);
 
-      // At the end of the loop, after replaceWith:
+      hydratedChildren.forEach((child) => {
+        if (instance.store) setupReactivity(instance.store, child);
+        console.log(instance, '.............');
+        setupBindingReactivity(instance.store, child);
+      });
+
       if (typeof instance.onMount === 'function') {
         requestAnimationFrame(() => {
-          instance.onMount({ ...context, ...instance, props: mergedProps }); //
+          instance.onMount({ ...componentContext });
         });
       }
     } catch (err) {
-      console.warn(`❌ Failed to load component <${tagName}>`, err);
+      console.warn(`Failed to load component <${tagName}>`, err);
     }
   }
 }
