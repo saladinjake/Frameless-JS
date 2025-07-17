@@ -24,14 +24,14 @@ const htmlImportBuild  = () => ({
       })
 
       if(!res || res.external) return  res
-      return res.id + postfix
+      return res.id + postFix
     }
 
 
   },
 
   async load(id){
-    if(!id.endsWith(postfix)) return;
+    if(!id.endsWith(postFix)) return;
     let htmlContent = await fsp.readFile(cleanUrl(id))
 
     // do stuff with html file content buffer
