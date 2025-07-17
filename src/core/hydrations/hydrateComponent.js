@@ -4,7 +4,16 @@ export async function hydrateComponent(element, context = {}) {
   if (element.dataset.hydrated) return;
   element.dataset.hydrated = 'true';
 
-  const { store, bindings = {}, effects = [], actions = {} } = context;
+  const {
+    store,
+    bindings = {},
+    effects = [],
+    actions = {},
+    props = {},
+  } = context;
+
+  // Debug props per element/component
+  console.log('[hydrateComponent] Hydrating with props:', props);
 
   if (store) {
     setupReactivity(store, element);
@@ -25,9 +34,6 @@ export async function hydrateComponent(element, context = {}) {
   element.querySelectorAll('[data-model]').forEach((el) => {
     const key = el.dataset.model;
     const fn = bindings[key];
-
-    // Add this here:
-    console.log('[hydrate:model]', { key, fn: typeof fn, value: fn?.() });
 
     if (typeof fn === 'function') {
       const current = fn();

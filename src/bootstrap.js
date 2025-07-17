@@ -3,11 +3,7 @@
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
 import { setupReactivity, bind, watchEffect } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
-import {
-  bindPropsToStore,
-  setupBindingReactivity,
-  setupModelBinding,
-} from './core/utils';
+import { bindPropsToStore, setupBindingReactivity } from './core/utils';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
@@ -171,26 +167,26 @@ export async function slotAwareRender({
   layoutHTML,
   params,
 }) {
-  const props = params;
-  const context = { app, params, props };
+  const props = { ...params };
+  const baseContext = { app, params, props };
   const viewDOM = htmlToDOM(viewHTML);
   let finalDOM = viewDOM;
 
   let actions = {};
   let module;
 
+  // 1. Inject layout if needed
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
-    injectSlots(layoutDOM, viewDOM);
-    await resolveChildComponents(layoutDOM, context);
+    injectSlots(layoutDOM, viewDOM); // inject <slot> content here
     finalDOM = layoutDOM;
   }
 
+  // 2. Load styles
   if (route.styles || route.style) {
     const stylePaths = Array.isArray(route.styles || route.style)
       ? route.styles || route.style
       : [route.style];
-
     for (const stylePath of stylePaths) {
       const res = await fetch(stylePath);
       const css = await res.text();
@@ -198,9 +194,11 @@ export async function slotAwareRender({
     }
   }
 
+  // 3. Render View
   const renderView = async () => {
     const domClone = finalDOM.cloneNode(true);
 
+    // 3a. Load and execute view script
     if (route.script || route.scripts) {
       const scriptPaths = Array.isArray(route.scripts || route.script)
         ? route.scripts || route.script
@@ -209,21 +207,9 @@ export async function slotAwareRender({
       module = await import(`./${scriptPaths[0]}?t=${Date.now()}`);
 
       if (typeof module.init === 'function') {
-        actions = (await module.init({ ...context, props })) || {};
+        actions = (await module.init({ ...baseContext })) || {};
+
         const template = actions.template;
-
-        if (!actions.bindings) actions.bindings = {};
-        if (actions.props && actions.store) {
-          for (const key of Object.keys(actions.props)) {
-            if (!(key in actions.bindings)) {
-              actions.bindings[key] = (val) => {
-                if (val !== undefined) actions.store.state[key] = val;
-                return actions.store.state[key];
-              };
-            }
-          }
-        }
-
         if (template && typeof template === 'string') {
           const container = document.createElement('div');
           container.innerHTML = template;
@@ -231,37 +217,53 @@ export async function slotAwareRender({
           for (const el of [...container.children]) {
             const slot = el.getAttribute('slot') || null;
 
-            await hydrateComponent(el, { ...context, ...actions, props });
-            if (actions.store) setupReactivity(actions.store, el);
-
-            await resolveChildComponents(el, { ...context, ...actions, props });
+            await hydrateComponent(el, {
+              ...baseContext,
+              ...actions,
+              props: { ...props },
+            });
 
             const target = slot
               ? domClone.querySelector(`slot[name="${slot}"]`)
               : domClone.querySelector('slot:not([name])');
 
-            if (target) target.replaceWith(el);
+            if (target) {
+              target.replaceWith(el);
+            }
           }
         }
 
         requestAnimationFrame(() => {
-          actions.onMount?.({ ...context, ...actions, props });
+          actions.onMount?.({ ...baseContext, ...actions, props });
+          setupBindingReactivity(actions.store, app);
 
-          setupBindingReactivity(actions.store, document.body);
-          setupModelBinding(actions.store, document.body);
           window.__currentDestroy = () => actions.onDestroy?.();
         });
       }
     }
 
-    await hydrateComponent(domClone, { ...context, ...actions, props });
-    await resolveChildComponents(domClone, { ...context, ...actions, props });
-
-    requestAnimationFrame(() => {
-      shallowDiffAndPatch(app, domClone.children);
+    // 3b. 🌟 🌟 Critical: Hydrate and resolve AFTER slot fill
+    await hydrateComponent(domClone, {
+      ...baseContext,
+      ...actions,
+      props: { ...props },
     });
 
-    // re-run any dynamic inline scripts from viewHTML
+    await resolveChildComponents(domClone, {
+      ...baseContext,
+      ...actions,
+      props: { ...props },
+    });
+
+    // 4. Patch DOM
+    requestAnimationFrame(() => {
+      shallowDiffAndPatch(app, domClone.children);
+      [...app.children].forEach((child) => {
+        if (actions.store) setupReactivity(actions.store, child);
+      });
+    });
+
+    // 5. Inline Scripts
     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
     for (const oldScript of doc.querySelectorAll('script')) {
       const newScript = document.createElement('script');
@@ -279,10 +281,8 @@ export async function slotAwareRender({
     route?.onLoad?.();
   };
 
-  // Initial render
   await renderView();
 
-  // Add watchEffect
   watchEffect({
     props,
     store: actions.store,

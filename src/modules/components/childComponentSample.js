@@ -1,33 +1,31 @@
 import { useStore, watchEffect } from '../../core/hooks/basic';
-import { setupBindingReactivity, setupModelBinding } from '../../core/utils';
 
 export function init({ props }) {
   const store = useStore({
-    bio: props?.bio,
+    bio: props?.bio || '',
   });
 
   watchEffect({
     props,
     store,
     callback: ({ props, state }) => {
-      console.log('[watchEffect triggered]', { props, state });
-      // 🔁 Optional: rerender logic or sync UI manually if needed
-      console.log(state.bio);
+      console.log('[watchEffect:my-profile]', { props, state });
+      store.setState({ ...state, bio: state.bio });
     },
   });
 
   return {
-    // store,
-    // props,
+    store,
     template: `
       <div>
         <h4>My Profile Component</h4>
-        <input type="text" data-model="bio"  />
+        <input type="text" data-model="bio" />
         <p>Live bio: <span data-bind-text="bio"></span></p>
       </div>
     `,
-    onMount() {
-      console.log('[my-profile] mounted', props);
+    onMount({ props }) {
+      console.log('[my-profile] onMount props', props);
+
       store.setState({ ...store.state, bio: props.bio });
     },
     onDestroy() {

@@ -68,16 +68,15 @@ export function syncPropsToStore(instance, props = {}) {
     }
   }
 }
-
 export function setupBindingReactivity(store, rootEl) {
-  store.subscribe((state) => {
-    const elements = rootEl.querySelectorAll('[data-bind], [data-model]');
+  const elements = rootEl.querySelectorAll('[data-bind], [data-model]');
 
-    elements.forEach((el) => {
-      const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
-      const value = state[key];
+  elements.forEach((el) => {
+    const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
 
-      // Update inputs
+    // Set up per-key subscription
+    store.subscribe(key, (value) => {
+      // Update input-type elements
       if (
         el.tagName === 'INPUT' ||
         el.tagName === 'TEXTAREA' ||
@@ -86,26 +85,25 @@ export function setupBindingReactivity(store, rootEl) {
         if (el.value !== value) {
           el.value = value ?? '';
         } else {
-          console.log(el.value, value);
+          console.log(`[INPUT] No change for key "${key}" →`, value);
+        }
+
+        // For data-model, two-way bind input → store
+        if (el.hasAttribute('data-model')) {
+          el.addEventListener('input', (e) => {
+            if (store.state[key] !== e.target.value) {
+              store.setState(key, e.target.value);
+            }
+          });
         }
       } else {
-        // Update innerText for others
+        // Update non-input elements (innerText)
         if (el.textContent !== value) {
           el.textContent = value ?? '';
         } else {
-          console.log(el.value, value, 'inner text');
+          console.log(`[TEXT] No change for key "${key}" →`, value);
         }
       }
-    });
-  });
-}
-
-export function setupModelBinding(store, rootEl) {
-  const inputs = rootEl.querySelectorAll('[data-model]');
-  inputs.forEach((el) => {
-    const key = el.getAttribute('data-model');
-    el.addEventListener('input', (e) => {
-      store.setState(key, el.value);
     });
   });
 }

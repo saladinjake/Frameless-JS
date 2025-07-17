@@ -46,7 +46,7 @@ export function init({ props = {} }) {
 <!-- Type 3: Fallback unnamed content -->
 <div>
   <p>This is default content in the unnamed slot</p>
-     <my-profile></my-profile>
+     <my-profile bio="this is the value"></my-profile>
 </div>
       </main>
     `,

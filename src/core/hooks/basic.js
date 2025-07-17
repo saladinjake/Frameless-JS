@@ -1,48 +1,37 @@
 // 1. Minimal reactive store
-
 export function useStore(initialState = {}) {
-  const subscribers = new Set();
+  const subscribers = new Map(); // key → [fns]
 
-  const handler = {
-    get(target, key) {
-      return Reflect.get(target, key);
+  const state = new Proxy(
+    { ...initialState },
+    {
+      get(target, key) {
+        return target[key];
+      },
+      set(target, key, value) {
+        if (target[key] !== value) {
+          target[key] = value;
+          notify(key); // notify per key
+        }
+        return true;
+      },
     },
-    set(target, key, value) {
-      const updated = Reflect.set(target, key, value);
-      if (updated) {
-        notify();
-      } else {
-        console.warn(`[useStore] Failed to set ${key}`);
-      }
-      return updated;
-    },
-  };
+  );
 
-  const state = new Proxy({ ...initialState }, handler);
-
-  function notify() {
-    subscribers.forEach((fn) => {
-      if (typeof fn === 'function') {
-        fn(state);
-      } else {
-        console.warn('[useStore] Subscriber is not a function:', fn);
-      }
-    });
+  function notify(key) {
+    const fns = subscribers.get(key) || [];
+    fns.forEach((fn) => fn(state[key]));
   }
 
   return {
     state,
-    setState(key, value) {
-      state[key] = value;
+    setState(key, val) {
+      state[key] = val;
     },
-    subscribe(fn) {
-      if (typeof fn !== 'function') {
-        console.warn('[useStore] Tried to subscribe a non-function:', fn);
-        console.trace();
-        return () => {};
-      }
-      subscribers.add(fn);
-      return () => subscribers.delete(fn);
+    subscribe(key, fn) {
+      if (!subscribers.has(key)) subscribers.set(key, []);
+      subscribers.get(key).push(fn);
+      fn(state[key]); // initial emit
     },
   };
 }
@@ -108,36 +97,39 @@ export function bind(store) {
     });
   });
 }
-
 export function setupReactivity(store, root = document) {
   const all = (sel) => root.querySelectorAll(sel);
 
-  // Unified: data-bind + data-model
   all('[data-bind], [data-model]').forEach((el) => {
     const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
+
+    // Input → store
     el.addEventListener('input', (e) => {
-      store.state[key] = e.target.value;
+      store.setState(key, e.target.value);
     });
+
+    // store → DOM
     store.subscribe(key, (val) => {
-      if (el.value !== val) el.value = val;
+      if (el.value !== val) el.value = val ?? '';
     });
   });
 
-  // Text content binding
   all('[data-bind-text]').forEach((el) => {
     const key = el.getAttribute('data-bind-text');
-    store.subscribe(key, (val) => (el.textContent = val));
+    store.subscribe(key, (val) => {
+      el.textContent = val ?? '';
+    });
   });
 
-  // Attribute bindings: data-bind-attr="src:image, alt:desc"
   all('[data-bind-attr]').forEach((el) => {
-    const attrMap = el.getAttribute('data-bind-attr').split(',');
-    attrMap.forEach((pair) => {
+    const pairs = el.getAttribute('data-bind-attr').split(',');
+    pairs.forEach((pair) => {
       const [attr, key] = pair.trim().split(':');
       store.subscribe(key, (val) => el.setAttribute(attr, val));
     });
   });
 }
+
 export function watchEffect({ props = {}, store, callback }) {
   if (!store || typeof callback !== 'function') return;
 
