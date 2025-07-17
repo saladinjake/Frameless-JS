@@ -320,30 +320,100 @@ function handleRoute(app, routes) {
   }
 }
 
+// core/utils/loaders.js
+// core/utils/loaders.js
+
+/**
+ * Attempts to load a file from the Vite src directory using import.meta.glob
+ * @param {string} filename - e.g. "Main.html" or "views/About.html"
+ * @returns {Promise<string>} - raw file content
+ */
+export async function fallbackImportFromSrc(filename) {
+  // Normalize path (remove leading slash if any)
+  const cleanFilename = filename.replace(/^\/+/, '');
+
+  const templates = import.meta.glob('/src/**/*.{html,txt}', {
+    as: 'raw',
+    eager: false,
+  });
+
+  // Try to match by exact filename or relative path suffix
+  const match = Object.keys(templates).find((key) => {
+    return key.endsWith(`/${cleanFilename}`) || key.endsWith(cleanFilename);
+  });
+
+  if (!match) {
+    throw new Error(`[fallbackImportFromSrc] '${filename}' not found in src`);
+  }
+
+  try {
+    return await templates[match]();
+  } catch (err) {
+    throw new Error(
+      `[fallbackImportFromSrc] Failed to import '${filename}' from '${match}': ${err.message}`,
+    );
+  }
+}
+
+async function resolveContent(input) {
+  if (!input) return '';
+
+  // CASE 1: Function (async loader or dynamic import)
+  if (typeof input === 'function') {
+    const result = await input();
+    return typeof result === 'string' ? result : result?.default || '';
+  }
+
+  // CASE 2: Inline HTML string
+  if (typeof input === 'string') {
+    const isHTML = /<\/?[a-z][\s\S]*>/i.test(input.trim());
+    if (isHTML) return input;
+
+    // CASE 3: Try fetching from public/
+    try {
+      const res = await fetch(input);
+      if (!res.ok) throw new Error('Not found in public');
+      return await res.text();
+    } catch (err) {
+      // CASE 4: Fallback to import from src/
+      try {
+        return await fallbackImportFromSrc(input);
+      } catch (importErr) {
+        console.error(importErr.message);
+        throw new Error(`[resolveContent] Cannot resolve: ${input}`);
+      }
+    }
+  }
+
+  return '';
+}
 async function loadPage(app, route, params = {}, match = null) {
   try {
     window.__currentDestroy?.();
 
-    const resolveContent = async (input) => {
-      if (!input) return '';
+    // const resolveContent = async (input) => {
+    //   if (!input) return '';
 
-      // Function (dynamic import or async loader)
-      if (typeof input === 'function') {
-        const result = await input();
-        return typeof result === 'string' ? result : result?.default || '';
-      }
+    //   // Function (dynamic import or async loader)
+    //   if (typeof input === 'function') {
+    //     const result = await input();
+    //     return typeof result === 'string' ? result : result?.default || '';
+    //   }
 
-      // Inline HTML string
-      if (typeof input === 'string') {
-        const isHTML = /<\/?[a-z][\s\S]*>/i.test(input.trim());
-        if (isHTML) return input;
+    //   // Inline HTML string
+    //   if (typeof input === 'string') {
+    //     const isHTML = /<\/?[a-z][\s\S]*>/i.test(input.trim());
 
-        // Treat as a file path
-        return fetch(input).then((res) => res.text());
-      }
+    //     if (isHTML) return input;
 
-      return '';
-    };
+    //     // Treat as a file path
+    //     return fetch(input).then((res) => res.text());
+    //   }
+
+    //   return '';
+    // };
+
+    console.log(route.view);
 
     const [viewHTML, layoutHTML] = await Promise.all([
       resolveContent(route.view),
@@ -367,6 +437,23 @@ async function loadPage(app, route, params = {}, match = null) {
 function handleHashChange(app, routes) {
   handleRoute(app, routes);
 }
+
+// export const routes = [
+//   {
+//     path: '/',
+//     layout: '/layouts/Main.html',                  // From public/
+//     view: '/pages/Home.html',                      // From public/
+//   },
+//   {
+//     path: '/about',
+//     layout: () => import('../layouts/Main.html?raw'), // From src/ via dynamic import
+//     view: 'About.html',                            // Auto fallback to /src/views/About.html
+//   },
+//   {
+//     path: '/contact',
+//     view: '<h2>Contact us directly!</h2>'          // Raw HTML string
+//   },
+// ];
 
 export const bootstrapContainers = (routes) => {
   return {

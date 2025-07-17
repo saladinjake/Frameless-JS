@@ -7,9 +7,6 @@ export function init({ params, app }) {
   return {
     store, //  expose this so slotAwareRender can use it
     template: `
-
-
-
      <main>
      <h2>Welcom to Frameless</h2>
      <div slot="header">Main Section</div>

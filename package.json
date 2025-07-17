@@ -1,8 +1,9 @@
 {
-  "name": "Frameless-JS",
+  "name": "frameless-js",
   "description": "MVP solution",
   "version": "1.0.0",
   "type": "module",
+  "main": "index.js",
   "keywords": [
     "vanilla",
     "javascript",
