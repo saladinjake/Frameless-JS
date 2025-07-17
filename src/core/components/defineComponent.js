@@ -20,7 +20,7 @@ export function getComponentLoader(tagName) {
   if (componentRegistry.has(key)) return componentRegistry.get(key);
 
   // Optional fallback: dynamic import if not registered
-  const loader = () => import(`./components/${key}.js`);
-  componentRegistry.set(key, loader); // cache for next time
-  return loader;
+  // const loader = () => import(`./components/${key}.js`);
+  // componentRegistry.set(key, loader); // cache for next time
+  // return loader;
 }
