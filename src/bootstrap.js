@@ -1,9 +1,13 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity, bind } from './core/hooks/basic';
+import { setupReactivity, bind, watchEffect } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
-import { bindPropsToStore } from './core/utils';
+import {
+  bindPropsToStore,
+  setupBindingReactivity,
+  setupModelBinding,
+} from './core/utils';
 
 const loadedScriptSrcs = new Set();
 const DEFAULT_ROUTE = 'home';
@@ -160,7 +164,6 @@ function applyScopedStyle(cssText, scopeId) {
 // ✡ layouts with <slot> + components
 // ✡ views with <template slot> + nested components
 // ✡ reactivity and hydration end-to-end
-
 export async function slotAwareRender({
   app,
   route,
@@ -168,18 +171,17 @@ export async function slotAwareRender({
   layoutHTML,
   params,
 }) {
+  const props = params;
+  const context = { app, params, props };
   const viewDOM = htmlToDOM(viewHTML);
   let finalDOM = viewDOM;
 
-  const props = params;
-  const context = { app, params, props };
-
   let actions = {};
+  let module;
 
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
     injectSlots(layoutDOM, viewDOM);
-
     await resolveChildComponents(layoutDOM, context);
     finalDOM = layoutDOM;
   }
@@ -196,80 +198,99 @@ export async function slotAwareRender({
     }
   }
 
-  const domClone = finalDOM.cloneNode(true);
+  const renderView = async () => {
+    const domClone = finalDOM.cloneNode(true);
 
-  if (route.script || route.scripts) {
-    const scriptPaths = Array.isArray(route.scripts || route.script)
-      ? route.scripts || route.script
-      : [route.script];
+    if (route.script || route.scripts) {
+      const scriptPaths = Array.isArray(route.scripts || route.script)
+        ? route.scripts || route.script
+        : [route.script];
 
-    const module = await import(`./${scriptPaths[0]}?t=${Date.now()}`);
-    if (typeof module.init === 'function') {
-      actions = (await module.init({ ...context, props })) || {};
+      module = await import(`./${scriptPaths[0]}?t=${Date.now()}`);
 
-      const template = actions.template;
+      if (typeof module.init === 'function') {
+        actions = (await module.init({ ...context, props })) || {};
+        const template = actions.template;
 
-      if (!actions.bindings) actions.bindings = {};
-      if (actions.props && actions.store) {
-        for (const key of Object.keys(actions.props)) {
-          if (!(key in actions.bindings)) {
-            actions.bindings[key] = (val) => {
-              if (val !== undefined) actions.store.state[key] = val;
-              return actions.store.state[key];
-            };
+        if (!actions.bindings) actions.bindings = {};
+        if (actions.props && actions.store) {
+          for (const key of Object.keys(actions.props)) {
+            if (!(key in actions.bindings)) {
+              actions.bindings[key] = (val) => {
+                if (val !== undefined) actions.store.state[key] = val;
+                return actions.store.state[key];
+              };
+            }
           }
         }
-      }
 
-      if (template && typeof template === 'string') {
-        const container = document.createElement('div');
-        container.innerHTML = template;
+        if (template && typeof template === 'string') {
+          const container = document.createElement('div');
+          container.innerHTML = template;
 
-        for (const el of [...container.children]) {
-          const slot = el.getAttribute('slot') || null;
+          for (const el of [...container.children]) {
+            const slot = el.getAttribute('slot') || null;
 
-          await hydrateComponent(el, { ...context, ...actions, props });
-          if (actions.store) setupReactivity(actions.store, el);
+            await hydrateComponent(el, { ...context, ...actions, props });
+            if (actions.store) setupReactivity(actions.store, el);
 
-          await resolveChildComponents(el, { ...context, ...actions, props });
+            await resolveChildComponents(el, { ...context, ...actions, props });
 
-          const target = slot
-            ? domClone.querySelector(`slot[name="${slot}"]`)
-            : domClone.querySelector('slot:not([name])');
+            const target = slot
+              ? domClone.querySelector(`slot[name="${slot}"]`)
+              : domClone.querySelector('slot:not([name])');
 
-          if (target) target.replaceWith(el);
+            if (target) target.replaceWith(el);
+          }
         }
+
+        requestAnimationFrame(() => {
+          actions.onMount?.({ ...context, ...actions, props });
+
+          setupBindingReactivity(actions.store, document.body);
+          setupModelBinding(actions.store, document.body);
+          window.__currentDestroy = () => actions.onDestroy?.();
+        });
       }
-
-      requestAnimationFrame(() => {
-        actions.onMount?.({ ...context, ...actions, props });
-        window.__currentDestroy = () => actions.onDestroy?.();
-      });
     }
-  }
 
-  await hydrateComponent(domClone, { ...context, ...actions, props });
-  await resolveChildComponents(domClone, { ...context, ...actions, props });
+    await hydrateComponent(domClone, { ...context, ...actions, props });
+    await resolveChildComponents(domClone, { ...context, ...actions, props });
 
-  requestAnimationFrame(() => {
-    shallowDiffAndPatch(app, domClone.children);
+    requestAnimationFrame(() => {
+      shallowDiffAndPatch(app, domClone.children);
+    });
+
+    // re-run any dynamic inline scripts from viewHTML
+    const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
+    for (const oldScript of doc.querySelectorAll('script')) {
+      const newScript = document.createElement('script');
+      if (oldScript.src) {
+        if (loadedScriptSrcs.has(oldScript.src)) continue;
+        newScript.src = oldScript.src;
+        loadedScriptSrcs.add(oldScript.src);
+      } else {
+        newScript.textContent = oldScript.textContent;
+      }
+      if (oldScript.type) newScript.type = oldScript.type;
+      document.body.appendChild(newScript);
+    }
+
+    route?.onLoad?.();
+  };
+
+  // Initial render
+  await renderView();
+
+  // Add watchEffect
+  watchEffect({
+    props,
+    store: actions.store,
+    callback: async ({ props, state }) => {
+      console.log('[slotAwareRender] Watch triggered', { props, state });
+      await renderView();
+    },
   });
-
-  const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
-  for (const oldScript of doc.querySelectorAll('script')) {
-    const newScript = document.createElement('script');
-    if (oldScript.src) {
-      if (loadedScriptSrcs.has(oldScript.src)) continue;
-      newScript.src = oldScript.src;
-      loadedScriptSrcs.add(oldScript.src);
-    } else {
-      newScript.textContent = oldScript.textContent;
-    }
-    if (oldScript.type) newScript.type = oldScript.type;
-    document.body.appendChild(newScript);
-  }
-
-  route?.onLoad?.();
 }
 
 function handleRoute(app, routes) {

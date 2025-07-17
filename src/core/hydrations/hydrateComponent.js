@@ -26,7 +26,7 @@ export async function hydrateComponent(element, context = {}) {
     const key = el.dataset.model;
     const fn = bindings[key];
 
-    // 👇 Add this here:
+    // Add this here:
     console.log('[hydrate:model]', { key, fn: typeof fn, value: fn?.() });
 
     if (typeof fn === 'function') {

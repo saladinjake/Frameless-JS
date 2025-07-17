@@ -37,6 +37,7 @@
       "no-plusplus": "off",
       "camelcase": "off",
       "radix":"off",
+      "no-lonely-if":"off",
       "no-return-assign":"off",
     "import/no-extraneous-dependencies": [
       "error",

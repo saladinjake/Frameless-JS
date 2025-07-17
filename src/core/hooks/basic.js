@@ -1,31 +1,50 @@
 // 1. Minimal reactive store
-export function useStore(initial = {}) {
-  const listeners = new Map();
 
-  const notify = (key, val) => {
-    (listeners.get(key) || []).forEach((cb) => cb(val));
-  };
+export function useStore(initialState = {}) {
+  const subscribers = new Set();
 
-  const state = new Proxy(
-    { ...initial },
-    {
-      set(target, key, val) {
-        if (target[key] !== val) {
-          target[key] = val;
-          notify(key, val);
-        }
-        return true;
-      },
+  const handler = {
+    get(target, key) {
+      return Reflect.get(target, key);
     },
-  );
-
-  const subscribe = (key, cb) => {
-    if (!listeners.has(key)) listeners.set(key, []);
-    listeners.get(key).push(cb);
-    cb(state[key]);
+    set(target, key, value) {
+      const updated = Reflect.set(target, key, value);
+      if (updated) {
+        notify();
+      } else {
+        console.warn(`[useStore] Failed to set ${key}`);
+      }
+      return updated;
+    },
   };
 
-  return { state, subscribe };
+  const state = new Proxy({ ...initialState }, handler);
+
+  function notify() {
+    subscribers.forEach((fn) => {
+      if (typeof fn === 'function') {
+        fn(state);
+      } else {
+        console.warn('[useStore] Subscriber is not a function:', fn);
+      }
+    });
+  }
+
+  return {
+    state,
+    setState(key, value) {
+      state[key] = value;
+    },
+    subscribe(fn) {
+      if (typeof fn !== 'function') {
+        console.warn('[useStore] Tried to subscribe a non-function:', fn);
+        console.trace();
+        return () => {};
+      }
+      subscribers.add(fn);
+      return () => subscribers.delete(fn);
+    },
+  };
 }
 
 export function usePropsStore(initial = {}, fallback = {}) {
@@ -119,29 +138,28 @@ export function setupReactivity(store, root = document) {
     });
   });
 }
-// hooks/watchEffect.js
+export function watchEffect({ props = {}, store, callback }) {
+  if (!store || typeof callback !== 'function') return;
 
-export function watchEffect({ store, props = {}, callback }) {
-  if (!store || typeof store.subscribe !== 'function') return;
+  let lastProps = JSON.stringify(props);
+  let lastState = JSON.stringify(store.state);
 
-  let oldState = { ...store.state };
+  const checkForChanges = () => {
+    const currentProps = JSON.stringify(props);
+    const currentState = JSON.stringify(store.state);
 
-  const trigger = () => {
-    const newState = { ...store.state };
-    const changed = Object.keys(newState).some(
-      (key) => newState[key] !== oldState[key],
-    );
-
-    if (changed) {
-      oldState = newState;
-      callback({ props, state: newState });
+    if (currentProps !== lastProps || currentState !== lastState) {
+      lastProps = currentProps;
+      lastState = currentState;
+      callback({ props, state: store.state });
     }
   };
 
-  for (const key of Object.keys(store.state)) {
-    store.subscribe(key, trigger);
-  }
+  // Subscribe to each store key
+  Object.keys(store.state).forEach((key) => {
+    store.subscribe(key, checkForChanges);
+  });
 
-  // Trigger once on init
-  trigger();
+  // Initial run
+  callback({ props, state: store.state });
 }

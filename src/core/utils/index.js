@@ -45,3 +45,67 @@ export function syncStoreAndProps(store, props = {}, delay = 3000) {
     }
   }, delay);
 }
+
+export function syncPropsToStore(instance, props = {}) {
+  if (!instance?.store?.state) return;
+
+  const state = instance.store.state;
+  instance.__syncedKeys = instance.__syncedKeys || new Set();
+
+  for (const [key, value] of Object.entries(props)) {
+    const current = state[key];
+
+    if (
+      value !== undefined &&
+      current !== value &&
+      !instance.__syncedKeys.has(key)
+    ) {
+      state[key] = value;
+      instance.__syncedKeys.add(key);
+      console.log(` [sync] ${key} =`, value);
+    } else {
+      console.log(`[skip sync] ${key} already set or undefined`);
+    }
+  }
+}
+
+export function setupBindingReactivity(store, rootEl) {
+  store.subscribe((state) => {
+    const elements = rootEl.querySelectorAll('[data-bind], [data-model]');
+
+    elements.forEach((el) => {
+      const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
+      const value = state[key];
+
+      // Update inputs
+      if (
+        el.tagName === 'INPUT' ||
+        el.tagName === 'TEXTAREA' ||
+        el.tagName === 'SELECT'
+      ) {
+        if (el.value !== value) {
+          el.value = value ?? '';
+        } else {
+          console.log(el.value, value);
+        }
+      } else {
+        // Update innerText for others
+        if (el.textContent !== value) {
+          el.textContent = value ?? '';
+        } else {
+          console.log(el.value, value, 'inner text');
+        }
+      }
+    });
+  });
+}
+
+export function setupModelBinding(store, rootEl) {
+  const inputs = rootEl.querySelectorAll('[data-model]');
+  inputs.forEach((el) => {
+    const key = el.getAttribute('data-model');
+    el.addEventListener('input', (e) => {
+      store.setState(key, el.value);
+    });
+  });
+}
