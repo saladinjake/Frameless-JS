@@ -4,7 +4,10 @@ import { bind, setupReactivity, useStore, watchEffect } from "./src/core/hooks/b
 import Router from "./src/core/Router/FramelessRouter";
 
 
-export {
+
+
+
+const frameless =  Object.assign({}, {
     useStore,
     watchEffect,
     defineComponent,
@@ -12,4 +15,6 @@ export {
     setupReactivity,
     Router,
     bootstrapContainers
-}
+})
+
+export default framless
