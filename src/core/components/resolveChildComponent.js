@@ -121,8 +121,6 @@ export async function resolveChildComponents(root, parentContext = {}) {
             console.log(currentProps, props, key, val, '..............');
             if (typeof state[key] === 'undefined') {
               instance.store.setState(key, val);
-              props[key] = state[key];
-              currentProps[key] = state[key];
             }
           }
 

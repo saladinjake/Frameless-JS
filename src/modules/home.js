@@ -11,11 +11,6 @@ export function init({ props = {} }) {
     image: 'https://placekitten.com/200/200',
   });
 
-  // Just change name after 3s to prove it's reactive
-  // setTimeout(() => {
-  //   store.state.name = 'Juwa 🚀';
-  // }, 3000);
-
   return {
     store,
     template: `
