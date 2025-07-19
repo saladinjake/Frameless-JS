@@ -1,4 +1,4 @@
-import { useStore, watchEffect } from '../../core/hooks/basic';
+import { useStore, watchEffect } from '../../../../lib/src/core/hooks/basic';
 
 export function init({ props }) {
   const store = useStore({

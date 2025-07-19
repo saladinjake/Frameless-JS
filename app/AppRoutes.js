@@ -38,13 +38,23 @@ export async function loadTemplate(path) {
   }
 }
 
+// interface Route {
+//   path: string;
+//   view: () => Promise<string>;
+//   script?: string;
+//   scriptBase?: string;
+//   layout?: string;
+//   scripts?: string[]; // optional multiple scripts support
+// }
+
 export const routes = [
   {
     path: 'home',
     view: () => loadTemplate('./views/home.html'),
     onLoad: () => console.log('Home loaded'),
     layout: './views/layouts/default.html',
-    scripts: ['./modules/home.js'], // accepts array of string
+    // scriptBase: 'src/modules',
+    scripts: ['modules/home.js'], // accepts array of string
   },
 
   {

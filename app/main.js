@@ -1,5 +1,6 @@
+import { bootstrapContainers } from 'frameless-js';
 import { routes } from './AppRoutes';
-import { bootstrapContainers } from './src/bootstrap';
+
 // bootstrap the mini framework engine
 const root = document.getElementById('app');
 

@@ -1,4 +1,4 @@
-import { useStore } from '../core/hooks/basic';
+import { useStore } from "../../../lib/src/core/hooks/basic";
 
 export function init({ params, app }) {
   // 3. Use it

@@ -1,7 +1,7 @@
 {
   "name": "frameless-js",
   "description": "MVP solution",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "type": "module",
   "keywords": [
     "vanilla",
@@ -19,6 +19,15 @@
     "vite-template",
     "vitejs-template"
   ],
+  "main": "./dist/main.cjs",
+  "module": "./dist/main.js",
+  "exports": {
+    ".": {
+      "import": "./dist/main.js",
+      "require": "./dist/main.cjs"
+    }
+   
+  },
   "scripts": {
     "dev": "vite --host --open",
     "lint": "eslint --ext .js ./",

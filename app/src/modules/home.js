@@ -1,7 +1,7 @@
-import { useStore, setupReactivity } from '../core/hooks/basic';
-import { defineComponent } from '../core/components/defineComponent';
-
 import { init as MyProfile } from './components/childComponentSample';
+
+import { useStore, setupReactivity } from '../../../lib/src';
+import { defineComponent } from '../../../lib/src/core/components/defineComponent';
 
 defineComponent('my-profile', () => Promise.resolve({ init: MyProfile }));
 
