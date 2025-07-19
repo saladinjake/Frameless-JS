@@ -1,10 +1,11 @@
 import { init as MyProfile } from './components/childComponentSample';
 
-import { useStore, setupReactivity, defineComponent } from 'frameless-js';
+import { useStore, /*setupReactivity,*/ defineComponent } from 'frameless-js';
 
 defineComponent('my-profile', () => Promise.resolve({ init: MyProfile }));
 
 export function init({ props = {} }) {
+ 
   const store = useStore({
     name: 'Victor',
     image: 'https://placekitten.com/200/200',

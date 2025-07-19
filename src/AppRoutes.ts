@@ -38,15 +38,6 @@ export async function loadTemplate(path: string) {
   }
 }
 
-// interface Route {
-//   path: string;
-//   view: () => Promise<string>;
-//   script?: string;
-//   scriptBase?: string;
-//   layout?: string;
-//   scripts?: string[]; // optional multiple scripts support
-// }
-
 export const routes = [
   {
     path: 'home',
@@ -54,7 +45,7 @@ export const routes = [
     onLoad: () => console.log('Home loaded'),
     layout: './views/layouts/default.html',
     // scriptBase: 'src/modules',
-    scripts: ['modules/home.ts'], // accepts array of string
+    scripts: ['modules/home'], // accepts array of string
   },
 
   {
@@ -62,7 +53,7 @@ export const routes = [
     view: './views/login.html',
     onLoad: () => console.log('Login loaded'),
     layout: './views/layouts/default.html',
-    scripts: ['./modules/Login/Login.js'], // accepts array of string
+    scripts: ['modules/Login/Login'], // accepts array of string
   },
   {
     path: 'profile/:id', // /^profile\/(\d+)$/,
@@ -86,7 +77,7 @@ export const routes = [
       }
       return true;
     },
-    script: ['./modules/about.js'], // accepts array of string
+    script: ['modules/about'], // accepts array of string
   },
   {
     path: 'about',
@@ -97,7 +88,7 @@ export const routes = [
       return true; // must return true to continue
     },
     onLoad: () => console.log('About page is now visible'),
-    script: './modules/about.js',
+    script: 'modules/about',
   },
   {
     path: 'contact',
@@ -113,7 +104,7 @@ export const routes = [
   {
     path: 'dashboard',
     view: './views/dashboard.html',
-    script: './modules/dashboard.js',
+    script: 'modules/dashboard',
     layout: './views/layouts/dashboard.html',
     // todo add route beforeEnter and beforeLeave
     // beforeEnter: (params) => {
@@ -127,6 +118,6 @@ export const routes = [
   {
     path: '*',
     view: './views/404.html',
-    script: './modules/404.js',
+    script: 'modules/404',
   },
 ];
