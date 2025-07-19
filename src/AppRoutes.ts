@@ -54,7 +54,7 @@ export const routes = [
     onLoad: () => console.log('Home loaded'),
     layout: './views/layouts/default.html',
     // scriptBase: 'src/modules',
-    scripts: ['modules/home.js'], // accepts array of string
+    scripts: ['modules/home.ts'], // accepts array of string
   },
 
   {

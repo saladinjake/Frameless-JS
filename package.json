@@ -48,6 +48,7 @@
     "vite-plugin-lib-inject-css": "^2.1.1"
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.38.7"
+    "@ast-grep/napi": "^0.38.7",
+    "frameless-js": "^0.0.1"
   }
 }
