@@ -1,8 +1,7 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity, //watchEffect
- } from './core/hooks/basic';
+import { setupReactivity,  } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
 import { loadModule } from './core/utils';
 

@@ -4,10 +4,32 @@
   "private": false,
   "version": "0.0.4",
   "type": "module",
+  "main": "dist/cjs/main.js",
+  "module": "dist/esm/main.js",
   "exports": {
     ".": {
-      "types": "./dist/lib/main.d.ts",
-      "default": "./dist/main.js"
+      "require": "./dist/cjs/main.js",
+      "import": "./dist/esm/main.js"
+    },
+    "./hydrations": {
+      "import": {
+        "types": "./dist/esm/types/core/hydrations/hydrateComponent.d.ts",
+        "default": "./dist/esm/core/hydrations/hydrateComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/types/core/hydrations/hydrateComponent.d.ts",
+        "default": "./dist/cjs/core/hydrations/hydrateComponent.js"
+      }
+    },
+    "./hooks": {
+      "import": {
+        "types": "./dist/esm/types/core/hooks/basic.d.ts",
+        "default": "./dist/esm/core/hooks/basic.js"
+      },
+      "require": {
+        "types": "./dist/cjs/types/core/hooks/basic.d.ts",
+        "default": "./dist/cjs/core/hooks/basic.js"
+      }
     }
   },
   "files": [
@@ -22,7 +44,10 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b ./tsconfig.lib.json && vite build",
+    "build:types": "tsc -p tsconfig.lib.json",
+    "build:cjs": "tsc -p tsconfig.lib.cjs.json",
+    "build:esm": "vite build",
+    "build": "npm run build:types && npm run build:cjs && npm run build:esm",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
@@ -49,6 +74,6 @@
   },
   "dependencies": {
     "@ast-grep/napi": "^0.38.7",
-    "frameless-js": "^0.0.1"
+    "frameless-js": "0.0.4"
   }
 }
