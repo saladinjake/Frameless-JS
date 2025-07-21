@@ -50,7 +50,7 @@ export const routes = [
 
   {
     path: 'login',
-    view: './views/login.html',
+    view: './src/modules/Login/login.html',
     onLoad: () => console.log('Login loaded'),
     layout: './views/layouts/default.html',
     scripts: ['modules/Login/Login'], // accepts array of string

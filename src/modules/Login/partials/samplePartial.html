@@ -1,0 +1,11 @@
+<div>A sample Partial</div>
+
+<div class="card">
+  <h2><slot name="title">Title was replacement of welcome</slot></h2>
+  <div class="body"><slot name="body">Body is body content</slot></div>
+  <footer><slot name="footer">Footer</slot></footer>
+</div>
+
+<script>
+  console.log("FormCard Loaded");
+</script>
