@@ -1,0 +1,29 @@
+<h1>Login Page</h1>
+<p>This is a public login page.</p>
+
+<!--methods to render components-->
+<div id="renderLoginComponent">
+  <!--render login component here-->
+   <div>
+  <h1>Login</h1>
+
+<partial src="/src/modules/Login/partials/samplePartial.html">
+  <template slot="title">👋 Welcome Back</template>
+  <template slot="body">
+    <input data-model="email" placeholder="Email" />
+    <input data-model="password" placeholder="Password" type="password" />
+    <button>Login</button>
+  </template>
+</partial>
+
+<script>
+console.log("workis")
+</script>
+
+</div>
+</div>
+
+<script>
+  console.log("About page JS executed");
+  document.body.style.background = "#eef";
+</script>

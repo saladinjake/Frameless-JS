@@ -1,9 +1,10 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity,  } from './core/hooks/basic';
+import { setupReactivity, } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
 import { loadModule } from './core/utils';
+import { applyBindings } from './core/bindings/interpolationBindings';
 
 const loadedScriptSrcs = new Set<string>();
 const DEFAULT_ROUTE = 'home';
@@ -203,6 +204,150 @@ interface ComponentActions {
   [key: string]: any;
 }
 
+// export async function slotAwareRender({
+//   app,
+//   route,
+//   viewHTML,
+//   layoutHTML,
+//   params,
+//   match = null
+// }: RenderOptions): Promise<void> {
+//   const props = { ...params };
+//   const baseContext = { app, params, props };
+//   const viewDOM = htmlToDOM(viewHTML);
+//   let finalDOM = viewDOM;
+//   let actions: ComponentActions = {};
+//   let module: any;
+
+//   console.log(match)
+
+//   if (layoutHTML) {
+//     const layoutDOM = htmlToDOM(layoutHTML);
+//     injectSlots(layoutDOM, viewDOM);
+//     finalDOM = layoutDOM;
+//   }
+
+//   if (route.styles || route.style) {
+//     const stylePaths: any = Array.isArray(route.styles || route.style)
+//       ? (route.styles || route.style)
+//       : [route.style];
+//     for (const stylePath of stylePaths) {
+//       const res = await fetch(stylePath);
+//       const css = await res.text();
+//       applyScopedStyle(css, `scoped-style-${route.path}`);
+//     }
+//   }
+
+//   const renderView = async (): Promise<void> => {
+//     const domClone = finalDOM.cloneNode(true) as HTMLElement;
+
+//     if (route.script || route.scripts) {
+//       const scriptPaths: any = Array.isArray(route.scripts || route.script)
+//         ? (route.scripts || route.script)
+//         : [route.script];
+
+//       module = await loadModule(`${scriptPaths[0]}`, route.scriptBase || 'modules');
+
+//       if (typeof module.init === 'function') {
+//         actions = await module.init({ ...baseContext }) || {};
+//         const { template } = actions;
+
+//         if (template && typeof template === 'string') {
+//           const container = document.createElement('div');
+//           container.innerHTML = template;
+
+//           for (const el of [...container.children]) {
+//             const slot = el.getAttribute('slot') || null;
+
+//             await hydrateComponent(el as HTMLElement, {
+//               ...baseContext,
+//               ...actions,
+//               props: { ...props },
+//             });
+
+//             const target = slot
+//               ? domClone.querySelector(`slot[name="${slot}"]`)
+//               : domClone.querySelector('slot:not([name])');
+
+//             if (target) target.replaceWith(el);
+//           }
+//         }
+
+//         requestAnimationFrame(() => {
+//           actions.onMount?.({ ...baseContext, ...actions, props });
+//           if (actions.store) setupReactivity(actions.store, app);
+//           currentDestroy = () => actions.onDestroy?.();
+//         });
+//       }
+//     }
+
+//     await hydrateComponent(domClone, {
+//       ...baseContext,
+//       ...actions,
+//       props: { ...props },
+//     });
+
+//     await resolveChildComponents(domClone, {
+//       ...baseContext,
+//       ...actions,
+//       props: { ...props },
+//     });
+
+
+
+//     requestAnimationFrame(() => {
+//       if (!app || !domClone || !domClone.children) {
+//         console.warn('[hydrate] Skipping patch - app or domClone is null');
+//         return;
+//       }
+
+//       shallowDiffAndPatch(app, domClone.children);
+
+//       Array.from(app.children).forEach((child: any) => {
+//         if (actions.store) setupReactivity(actions.store, child);
+//       });
+//     });
+
+
+//     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
+//     for (const oldScript of doc.querySelectorAll('script')) {
+//       const newScript = document.createElement('script');
+//       if (oldScript.src) {
+//         if (loadedScriptSrcs.has(oldScript.src)) continue;
+//         newScript.src = oldScript.src;
+//         loadedScriptSrcs.add(oldScript.src);
+//       } else {
+//         newScript.textContent = oldScript.textContent;
+//       }
+//       if (oldScript.type) newScript.type = oldScript.type;
+//       document.body.appendChild(newScript);
+//     }
+
+//     route.onLoad?.();
+//   };
+
+//   await renderView();
+
+//   // watchEffect({
+//   //   props,
+//   //   store: actions.store,
+//   //   callback: async ({ props: newProps, state }: { props: any, state: any }) => {
+//   //     if (typeof actions.onPropsChanged === 'function') {
+//   //       await actions.onPropsChanged({
+//   //         props: newProps,
+//   //         state,
+//   //         context: { ...baseContext, ...actions },
+//   //       });
+//   //     }
+
+//   //     console.log('[slotAwareRender] Watch triggered', { newProps, state });
+//   //     await renderView();
+//   //   },
+//   // });
+// }
+
+
+
 export async function slotAwareRender({
   app,
   route,
@@ -218,18 +363,21 @@ export async function slotAwareRender({
   let actions: ComponentActions = {};
   let module: any;
 
-  console.log(match)
+  console.log('[Route Match]', match);
 
+  // If layout provided, inject slots into layout
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
     injectSlots(layoutDOM, viewDOM);
     finalDOM = layoutDOM;
   }
 
+  // Load scoped styles (CSS)
   if (route.styles || route.style) {
     const stylePaths: any = Array.isArray(route.styles || route.style)
       ? (route.styles || route.style)
       : [route.style];
+
     for (const stylePath of stylePaths) {
       const res = await fetch(stylePath);
       const css = await res.text();
@@ -237,6 +385,7 @@ export async function slotAwareRender({
     }
   }
 
+  // Main render logic
   const renderView = async (): Promise<void> => {
     const domClone = finalDOM.cloneNode(true) as HTMLElement;
 
@@ -286,14 +435,18 @@ export async function slotAwareRender({
       props: { ...props },
     });
 
+    // ✅ NEW: Apply interpolation + bindings (data-bind-text / data-model)
+    if (actions.store) {
+      applyBindings(domClone, actions.store);
+    }
+
     await resolveChildComponents(domClone, {
       ...baseContext,
       ...actions,
       props: { ...props },
     });
 
-
-
+    // DOM diff patch
     requestAnimationFrame(() => {
       if (!app || !domClone || !domClone.children) {
         console.warn('[hydrate] Skipping patch - app or domClone is null');
@@ -307,7 +460,7 @@ export async function slotAwareRender({
       });
     });
 
-
+    // Re-execute any <script> tags in HTML (inline or external)
     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
     for (const oldScript of doc.querySelectorAll('script')) {
       const newScript = document.createElement('script');
@@ -322,11 +475,13 @@ export async function slotAwareRender({
       document.body.appendChild(newScript);
     }
 
+    // Final route hook
     route.onLoad?.();
   };
 
   await renderView();
 
+  // Optional future enhancement: reactivity-driven re-render
   // watchEffect({
   //   props,
   //   store: actions.store,
@@ -345,162 +500,6 @@ export async function slotAwareRender({
   // });
 }
 
-
-// export async function slotAwareRender({
-//   app,
-//   route,
-//   viewHTML,
-//   layoutHTML,
-//   params,
-// }) {
-//   const props = { ...params };
-//   const baseContext = { app, params, props };
-//   const viewDOM = htmlToDOM(viewHTML);
-//   let finalDOM = viewDOM;
-
-//   const collectedActions = [];
-//   const allStores = [];
-
-//   if (layoutHTML) {
-//     const layoutDOM = htmlToDOM(layoutHTML);
-//     injectSlots(layoutDOM, viewDOM);
-//     finalDOM = layoutDOM;
-//   }
-
-//   // Load styles
-//   if (route.styles || route.style) {
-//     const stylePaths = Array.isArray(route.styles || route.style)
-//       ? route.styles || route.style
-//       : [route.style];
-
-//     for (const stylePath of stylePaths) {
-//       try {
-//         const res = await fetch(stylePath);
-//         const css = await res.text();
-//         applyScopedStyle(css, `scoped-style-${route.path}`);
-//       } catch (err) {
-//         console.warn(
-//           `[slotAwareRender] Failed to load style: ${stylePath}`,
-//           err,
-//         );
-//       }
-//     }
-//   }
-
-//   const renderView = async () => {
-//     const domClone = finalDOM.cloneNode(true);
-
-//     const rawScriptPaths = Array.isArray(route.scripts || route.script)
-//       ? route.scripts || []
-//       : route.script
-//         ? [route.script]
-//         : [];
-
-//     for (const rawPath of rawScriptPaths) {
-//       try {
-//         const mod = await loadModule(rawPath, route.scriptBase || 'modules');
-
-//         if (mod?.init && typeof mod.init === 'function') {
-//           const actions = (await mod.init({ ...baseContext })) || {};
-//           collectedActions.push(actions);
-//           if (actions.store) allStores.push(actions.store);
-
-//           const template = actions.template;
-//           if (template && typeof template === 'string') {
-//             const container = document.createElement('div');
-//             container.innerHTML = template;
-
-//             for (const el of [...container.children]) {
-//               const slot = el.getAttribute('slot') || null;
-//               await hydrateComponent(el, {
-//                 ...baseContext,
-//                 ...actions,
-//                 props: { ...props },
-//               });
-
-//               const target = slot
-//                 ? domClone.querySelector(`slot[name="${slot}"]`)
-//                 : domClone.querySelector('slot:not([name])');
-
-//               if (target) target.replaceWith(el);
-//             }
-//           }
-
-//           requestAnimationFrame(() => {
-//             actions.onMount?.({ ...baseContext, ...actions, props });
-//           });
-
-//           // Save destroy hook
-//           window.__currentDestroy = () => actions.onDestroy?.();
-//         }
-//       } catch (err) {
-//         console.error(
-//           `[slotAwareRender] Failed to import script: ${rawPath}`,
-//           err,
-//         );
-//       }
-//     }
-
-//     await hydrateComponent(domClone, {
-//       ...baseContext,
-//       props: { ...props },
-//     });
-
-//     await resolveChildComponents(domClone, {
-//       ...baseContext,
-//       props: { ...props },
-//     });
-
-//     requestAnimationFrame(() => {
-//       shallowDiffAndPatch(app, domClone.children);
-//       for (const child of app.children) {
-//         for (const store of allStores) {
-//           setupReactivity(store, child);
-//         }
-//       }
-//     });
-
-//     // Load <script> tags from viewHTML
-//     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
-//     for (const oldScript of doc.querySelectorAll('script')) {
-//       const newScript = document.createElement('script');
-//       if (oldScript.src) {
-//         if (loadedScriptSrcs.has(oldScript.src)) continue;
-//         newScript.src = oldScript.src;
-//         loadedScriptSrcs.add(oldScript.src);
-//       } else {
-//         newScript.textContent = oldScript.textContent;
-//       }
-//       if (oldScript.type) newScript.type = oldScript.type;
-//       document.body.appendChild(newScript);
-//     }
-
-//     route?.onLoad?.();
-//   };
-
-//   await renderView();
-
-//   for (const actions of collectedActions) {
-//     if (actions.store) {
-//       watchEffect({
-//         props,
-//         store: actions.store,
-//         callback: async ({ props: newProps, state }) => {
-//           if (typeof actions.onPropsChanged === 'function') {
-//             await actions.onPropsChanged({
-//               props: newProps,
-//               state,
-//               context: { ...baseContext, ...actions },
-//             });
-//           }
-
-//           console.log('[slotAwareRender] Watch triggered', { newProps, state });
-//           await renderView();
-//         },
-//       });
-//     }
-//   }
-// }
 
 
 export function handleRoute(app: HTMLElement, routes: Route[]): void {
@@ -537,8 +536,6 @@ export function handleRoute(app: HTMLElement, routes: Route[]): void {
 }
 
 
-// core/utils/loaders.js
-// core/utils/loaders.js
 
 /**
  * Attempts to load a file from the Vite src directory using import.meta.glob
@@ -546,18 +543,23 @@ export function handleRoute(app: HTMLElement, routes: Route[]): void {
  * @returns {Promise<string>} - raw file content
  */
 export async function fallbackImportFromSrc(filename: string): Promise<string> {
-  const cleanFilename = filename.replace(/^\/+/, '');
+  const cleanFilename = filename.replace(/^\/+/, '').replace(/^src\//, '');
 
-  const templates: Record<string, () => Promise<string>> | any = import.meta.glob('/src/**/*.{html,txt}', {
+  const templates: any = import.meta.glob('/src/**/*.{html,txt}', {
     as: 'raw',
     eager: false,
   });
 
-  const match = Object.keys(templates).find(key =>
-    key.endsWith(`/${cleanFilename}`) || key.endsWith(cleanFilename)
+  const candidates = Object.keys(templates);
+
+  // Try to match based on common patterns
+  const match = candidates.find(key =>
+    key.endsWith(`/${cleanFilename}`) || key.endsWith(`src/${cleanFilename}`) || key.endsWith(cleanFilename)
   );
 
   if (!match) {
+    console.error(`[fallbackImportFromSrc] Not found: '${filename}'`);
+    console.error('Searched keys:', candidates);
     throw new Error(`[fallbackImportFromSrc] '${filename}' not found in src`);
   }
 
@@ -568,36 +570,123 @@ export async function fallbackImportFromSrc(filename: string): Promise<string> {
   }
 }
 
+
 export async function resolveContent(
   input: string | (() => Promise<string | { default: string }>) | undefined
 ): Promise<string> {
   if (!input) return '';
 
+  let html: string;
+
+  // Run function to get HTML
   if (typeof input === 'function') {
     const result = await input();
-    return typeof result === 'string' ? result : result?.default || '';
+    html = typeof result === 'string' ? result : result?.default || '';
   }
 
-  if (typeof input === 'string') {
-    const isHTML = /<\/?[a-z][\s\S]*>/i.test(input.trim());
-    if (isHTML) return input;
+  // Raw inline HTML
+  else if (typeof input === 'string' && /<\/?[a-z][\s\S]*>/i.test(input.trim())) {
+    html = input;
+  }
 
+  // External path
+  else if (typeof input === 'string') {
     try {
       const res = await fetch(input);
       if (!res.ok) throw new Error('Not found in public');
-      return await res.text();
+      html = await res.text();
     } catch {
       try {
-        return await fallbackImportFromSrc(input);
-      } catch (importErr: any) {
-        console.error(importErr.message);
+        html = await fallbackImportFromSrc(input); // fallback via Vite
+      } catch (err: any) {
+        console.error(err.message);
         throw new Error(`[resolveContent] Cannot resolve: ${input}`);
       }
     }
+  } else {
+    html = '';
   }
 
-  return '';
+  //  Recursively resolve all <partial src="..."/>
+  html = await resolvePartials(html);
+
+  //  Optionally: Apply post-processing steps (reactivity, data-bind rewrites, etc.)
+  // For now, just return the string, as in your original version
+  return html;
 }
+
+
+
+export async function resolvePartials(html: string): Promise<string> {
+  const PARTIAL_TAG_REGEX = /<partial\s+src=["']([^"']+)["']\s*\/?>/gi;
+
+  let match: RegExpExecArray | null;
+
+  while ((match = PARTIAL_TAG_REGEX.exec(html))) {
+    const src = match[1];
+    const partialHtml = await loadPartialContent(src);
+    const resolved = await resolvePartials(partialHtml); // recursive
+    html = html.replace(match[0], resolved);
+    PARTIAL_TAG_REGEX.lastIndex = 0;
+  }
+
+  return html;
+}
+
+
+function normalizePath(input: string): string {
+  return input.replace(/^\.?\/?/, '').replace(/^src\//, '');
+}
+
+async function loadPartialContent(src: string): Promise<string> {
+  const normalized = `/src/${normalizePath(src)}`;
+
+  try {
+    return await fallbackImportFromSrc(normalized);
+  } catch (err) {
+    console.warn(`[resolvePartials] Could not load: ${src}`);
+    return `<!-- Failed to load partial: ${src} -->`;
+  }
+}
+
+
+export async function resolveScript(filename: string): Promise<any> {
+  const cleanFilename = filename
+    .replace(/^\/+/, '')       // remove leading slashes
+    .replace(/^src\//, '')     // normalize "src/" if passed
+    .replace(/\.(js|ts)$/, ''); // strip extension for flexible match
+
+  const scripts: Record<string, () => Promise<any>> = import.meta.glob('/src/**/*.{js,ts}', {
+    eager: false,
+  });
+
+  const candidates = Object.keys(scripts);
+
+  const match = candidates.find(key => {
+    const base = key
+      .replace(/^\/src\//, '')
+      .replace(/\.(js|ts)$/, '');
+
+    return (
+      base === cleanFilename ||             // exact
+      base.endsWith('/' + cleanFilename)    // relative path
+    );
+  });
+
+  if (!match) {
+    console.error(`[resolveScript] Not found: '${filename}'`);
+    console.error('Available scripts:', candidates);
+    throw new Error(`[resolveScript] '${filename}' not found in src`);
+  }
+
+  try {
+    const mod = await scripts[match]();
+    return mod;
+  } catch (err: any) {
+    throw new Error(`[resolveScript] Failed to import '${filename}' from '${match}': ${err.message}`);
+  }
+}
+
 
 
 export async function loadPage(
@@ -606,7 +695,7 @@ export async function loadPage(
   params: Record<string, any> = {},
   match: RegExpMatchArray | null = null
 ): Promise<void> {
-  
+
   try {
     window.__currentDestroy?.();
 
@@ -624,6 +713,8 @@ export async function loadPage(
       match,
     });
 
+   
+
     console.log('running...');
   } catch (err) {
     console.error('Render error:', err);
@@ -631,6 +722,6 @@ export async function loadPage(
   }
 }
 export function handleHashChange(app: HTMLElement | Document | any = document.getElementById("app"), routes: Route[]): void {
- 
+
   handleRoute(app, routes);
 }

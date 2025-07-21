@@ -1,5 +1,7 @@
 // import { init as MyProfile } from './components/childComponentSample';
 
+import { useStore } from "../lib/main";
+
 // import { useStore, /*setupReactivity,*/ defineComponent } from 'frameless-js';
 
 // defineComponent('my-profile', () => Promise.resolve({ init: MyProfile }));
@@ -56,4 +58,58 @@
 //   };
 // }
 
-export {}
+// export {}
+
+
+
+
+
+export async function init({ props }: {props: any}) {
+  const store = useStore({ // or createStore
+    name: 'Victor',
+    count: 0,
+  });
+
+
+
+
+// type MyState = {
+//   count: number;
+//   name: string;
+// };
+
+// const store = createStore<MyState>({
+//   count: 0,
+//   name: 'Victor'
+// });
+
+// store.subscribe('count', (val) => {
+//   console.log('New count:', val);
+// });
+
+// store.setState('count', 5); // Logs: New count: 5
+
+
+  return {
+    store,
+    template: `
+      <div>
+        <h1>Hello, tester {{name}}!</h1>
+        <input type="text" data-model="name" placeholder="Enter your name" />
+
+        <p data-bind-text="name"></p>
+
+        <hr />
+
+        <button id="inc">Increment</button>
+        <p>Counter: {{count}}</p>
+      </div>
+    `,
+    onMount({ store }: {store: any}) {
+      const incBtn = document.getElementById('inc');
+      incBtn?.addEventListener('click', () => {
+        store.setState('count', store.state.count + 1);
+      });
+    },
+  };
+}

@@ -45,6 +45,67 @@ export function useStore<T extends Record<string, any>>(initialState: T) {
 
 
 
+type Listener<T> = (value: T) => void;
+
+type StoreState<T> = {
+  [K in keyof T]: T[K];
+};
+
+type Store<T> = {
+  state: StoreState<T>;
+  setState<K extends keyof T>(key: K, value: T[K]): void;
+  getState<K extends keyof T>(key: K): T[K];
+  subscribe<K extends keyof T>(key: K, callback: Listener<T[K]>): void;
+  unsubscribe<K extends keyof T>(key: K, callback: Listener<T[K]>): void;
+};
+
+export function createStore<T extends Record<string, any>>(initialState: T): Store<T> {
+  const state = { ...initialState } as StoreState<T>;
+  const listeners: Partial<{ [K in keyof T]: Listener<T[K]>[] }> = {};
+
+  function notify<K extends keyof T>(key: K): void {
+    const currentListeners = listeners[key];
+    if (currentListeners) {
+      for (const fn of currentListeners) {
+        fn(state[key]);
+      }
+    }
+  }
+
+  return {
+    state,
+
+    setState<K extends keyof T>(key: K, value: T[K]): void {
+      if (state[key] !== value) {
+        state[key] = value;
+        notify(key);
+      }
+    },
+
+    getState<K extends keyof T>(key: K): T[K] {
+      return state[key];
+    },
+
+    subscribe<K extends keyof T>(key: K, callback: Listener<T[K]>): void {
+      if (!listeners[key]) {
+        listeners[key] = [];
+      }
+      listeners[key]!.push(callback);
+      callback(state[key]);
+    },
+
+    unsubscribe<K extends keyof T>(key: K, callback: Listener<T[K]>): void {
+      const currentListeners = listeners[key];
+      if (currentListeners) {
+        listeners[key] = currentListeners.filter(fn => fn !== callback);
+      }
+    }
+  };
+}
+
+
+
+
 
 type Callback<T> = (val: T) => void;
 
