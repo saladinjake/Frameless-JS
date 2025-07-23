@@ -1,23 +1,22 @@
 type Subscriber<T> = (value: T) => void;
 
 export function useStore<T extends Record<string, any>>(initialState: T) {
-  const subscribers = new Map<keyof T, Subscriber<T[keyof T]>[]>();
+  const subscribers = new Map<keyof T, ((value: T[keyof T]) => void)[]>();
+  const rawState = { ...initialState } as T;
 
   const notify = (key: keyof T) => {
     const fns = subscribers.get(key) || [];
-    fns.forEach((fn) => fn(state[key]));
+    fns.forEach(fn => fn(state[key]));
   };
 
-  const rawState = { ...initialState } as T;
-
   const state = new Proxy(rawState, {
-    get(target, prop: string | symbol, receiver: any) {
+    get(target, prop, receiver) {
       if (typeof prop === 'string' && prop in target) {
         return target[prop as keyof T];
       }
       return Reflect.get(target, prop, receiver);
     },
-    set(target, prop: string | symbol, value: any, receiver: any) {
+    set(target, prop, value, receiver) {
       if (typeof prop === 'string' && prop in target) {
         const key = prop as keyof T;
         if (target[key] !== value) {
@@ -35,13 +34,118 @@ export function useStore<T extends Record<string, any>>(initialState: T) {
     setState<K extends keyof T>(key: K, val: T[K]) {
       state[key] = val;
     },
-    subscribe<K extends keyof T>(key: K, fn: Subscriber<T[K] | any>) {
+    subscribe<K extends keyof T>(key: K, fn:  any /*(val: T[K]) => void | any*/) {
       if (!subscribers.has(key)) subscribers.set(key, []);
       subscribers.get(key)!.push(fn);
-      fn(state[key]); // initial emit
+      fn(state[key]); // initial run
+    },
+    watch(fn: () => void) {
+      fn(); // initial run
+      Object.keys(state).forEach((key) => {
+        this.subscribe(key as keyof T, () => fn());
+      });
     },
   };
 }
+
+
+// export function useStore<T extends Record<string, any>>(initialState: T) {
+//   const subscribers = new Map<keyof T, ((value: T[keyof T]) => void)[]>();
+
+//   const notify = (key: keyof T) => {
+//     const fns = subscribers.get(key) || [];
+//     fns.forEach(fn => fn(state[key]));
+//   };
+
+//   // Deep reactive wrapper
+//   function reactiveify(obj: any, parentKey?: keyof T): any {
+//     if (typeof obj !== 'object' || obj === null) return obj;
+
+//     if (Array.isArray(obj)) {
+//       const proxy = new Proxy(obj, {
+//         get(target, prop, receiver) {
+//           const value = Reflect.get(target, prop, receiver);
+//           if (
+//             typeof prop === 'string' &&
+//             ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'].includes(prop)
+//           ) {
+//             return (...args: any[]) => {
+//               const result = (value as Function).apply(target, args);
+//               if (parentKey) notify(parentKey);
+//               return result;
+//             };
+//           }
+//           return reactiveify(value, parentKey);
+//         },
+//         set(target, prop, value, receiver) {
+//           const result = Reflect.set(target, prop, reactiveify(value, parentKey), receiver);
+//           if (parentKey) notify(parentKey);
+//           return result;
+//         },
+//       });
+//       return proxy;
+//     }
+
+//     const proxy = new Proxy(obj, {
+//       get(target, prop, receiver) {
+//         return reactiveify(Reflect.get(target, prop, receiver), parentKey);
+//       },
+//       set(target, prop, value, receiver) {
+//         const result = Reflect.set(target, prop, reactiveify(value, parentKey), receiver);
+//         if (parentKey) notify(parentKey);
+//         return result;
+//       },
+//     });
+
+//     return proxy;
+//   }
+
+//   // Initialize rawState with reactive values
+//   const rawState = {} as T;
+//   for (const key in initialState) {
+//     rawState[key] = reactiveify(initialState[key], key);
+//   }
+
+//   // Directly use a Proxy on rawState instead of a dummy proxy delegator
+//   const state = new Proxy(rawState, {
+//     get(target, prop, receiver) {
+//       return Reflect.get(target, prop, receiver);
+//     },
+//     set(target, prop, value, receiver) {
+//       const result = Reflect.set(target, prop, reactiveify(value, prop as keyof T), receiver);
+//       notify(prop as keyof T);
+//       return result;
+//     },
+//     ownKeys(target) {
+//       return Reflect.ownKeys(target); // needed for Object.keys(state)
+//     },
+//     getOwnPropertyDescriptor(target, prop) {
+//       return Reflect.getOwnPropertyDescriptor(target, prop); // needed for Object.keys(state)
+//     },
+//   });
+
+//   return {
+//     state,
+
+//     setState<K extends keyof T>(key: K, val: T[K]) {
+//       state[key] = val;
+//     },
+
+//     subscribe<K extends keyof T>(key: K, fn: any) {
+//       if (!subscribers.has(key)) subscribers.set(key, []);
+//       subscribers.get(key)!.push(fn);
+//       fn(state[key]); // initial run
+//     },
+
+//     watch(fn: () => void) {
+//       fn(); // initial run
+//       Object.keys(state).forEach(key => {
+//         this.subscribe(key as keyof T, () => fn());
+//       });
+//     },
+//   };
+// }
+
 
 
 
@@ -103,6 +207,51 @@ export function createStore<T extends Record<string, any>>(initialState: T): Sto
   };
 }
 
+
+
+
+
+//const store = makeReactive({ count: 0, show: true })
+const dependencyMap = new WeakMap<object, Map<string, Set<() => void>>>();
+
+export function makeReactive<T extends object>(obj: T): T {
+  return new Proxy(obj, {
+    get(target, key: string) {
+      if (currentWatcher) {
+        trackDependency(target, key, currentWatcher);
+      }
+      return Reflect.get(target, key);
+    },
+    set(target, key: string, value) {
+      const result = Reflect.set(target, key, value);
+      triggerDependency(target, key);
+      return result;
+    },
+  });
+}
+
+let currentWatcher: (() => void) | null = null;
+
+function trackDependency(target: object, key: string, watcher: () => void) {
+  if (!dependencyMap.has(target)) dependencyMap.set(target, new Map());
+  const deps = dependencyMap.get(target)!;
+  if (!deps.has(key)) deps.set(key, new Set());
+  deps.get(key)!.add(watcher);
+}
+
+function triggerDependency(target: object, key: string) {
+  const deps = dependencyMap.get(target)?.get(key);
+  deps?.forEach((watcher) => watcher());
+}
+
+export function watch(fn: () => void) {
+  const runner = () => {
+    currentWatcher = runner;
+    fn();
+    currentWatcher = null;
+  };
+  runner();
+}
 
 
 

@@ -1,3 +1,5 @@
+import { applyBindings } from '../bindings/interpolationBindings';
+import { interpolateBindings,processDirectives } from '../directives/processDirectives';
 import { setupReactivity } from '../hooks/basic';
 
 type BindFunction = () => any;
@@ -29,7 +31,8 @@ interface ComponentContext {
 
 export async function hydrateComponent(
   element: Element | null,
-  context: ComponentContext = {}
+  context: ComponentContext = {},
+  props : any = {}
 ): Promise<void> {
   if (!element || element instanceof HTMLElement && element.dataset.hydrated === 'true') return;
   (element as HTMLElement).dataset.hydrated = 'true';
@@ -39,11 +42,11 @@ export async function hydrateComponent(
     bindings = {},
     effects = [],
     actions = {},
-    props = {},
+    props : propValues = {...context?.props},
     onPropsChange,
   } = context;
 
-  console.log('[hydrateComponent] Hydrating element:', element.tagName, { props });
+  console.log('[hydrateComponent] Hydrating element:', element.tagName, { propValues });
 
   // Setup scoped reactivity
   if (store) {
@@ -123,4 +126,15 @@ export async function hydrateComponent(
       console.warn('[hydrateComponent] onPropsChange error:', err);
     }
   }
+
+
+   if (context.store) {
+  
+  
+        //  Must run interpolation and directives after final DOM is resolved
+        interpolateBindings(element, context?.store, { ...propValues, ...context?.props }); // Handles {{ }}
+        processDirectives(element, context?.store, { ...propValues, ...context?.props });   // Handles x-if, x-for, x-on, etc.
+        applyBindings(element, context?.store, { ...propValues, ...context?.props });              // Additional binding logic
+    //    bindActions(app, actions)
+      }
 }

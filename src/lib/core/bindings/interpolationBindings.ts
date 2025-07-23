@@ -4,17 +4,43 @@ type Store<T> = {
   setState<K extends keyof T>(key: K, val: T[K]): void;
 };
 
-export function applyBindings<T extends Record<string, any>>(root: HTMLElement, store: Store<T>) {
-  const interpolate = (str: string) => {
-    return str.replace(/\{\{(.+?)\}\}/g, (_, key) => {
-      const val = store.state[key.trim()];
-      return val !== undefined ? String(val) : '';
-    });
+type Context = Record<string, any>;
+
+export function applyBindings<T extends Record<string, any>>(root: HTMLElement | any, store: Store<T>, extraContext: Context = {}) {
+  const evaluate = (expression: string, context: Context) => {
+    try {
+      const fn = new Function(...Object.keys(context), `return ${expression}`);
+      return fn(...Object.values(context));
+    } catch (e) {
+      console.warn(`Interpolation error in "${expression}":`, e);
+      return '';
+    }
   };
+
+  // const interpolate = (str: string, context: Context = {}) => {
+  //   console.log(str,context,"<<<<")
+  //   return str.replace(/\{\{(.+?)\}\}/g, (_, expr) => {
+  //     return evaluate(expr.trim(), { ...store.state, ...context });
+  //   });
+  // };
+
+  function interpolate(str: string, context: Record<string, any> = {}) {
+    return str.replace(/\{\{(.+?)\}\}/g, (_, expr) => {
+      try {
+        // Build a function with local scope injected
+        const fn = new Function(...Object.keys(context), ...Object.keys(store.state), `return ${expr};`);
+        return fn(...Object.values(context), ...Object.values(store.state));
+      } catch (err) {
+        console.warn('Interpolation error in expression:', expr, err);
+        return '';
+      }
+    });
+  }
+
 
   const bindText = (el: HTMLElement, key: keyof T) => {
     store.subscribe(key, (val) => {
-      el.textContent = val;
+      el.textContent = String(val);
     });
   };
 
@@ -28,7 +54,7 @@ export function applyBindings<T extends Record<string, any>>(root: HTMLElement, 
     });
   };
 
-  const traverse = (el: HTMLElement) => {
+  const traverse = (el: HTMLElement, context: Context = {}) => {
     if (el.hasAttribute('data-bind-text')) {
       const key = el.getAttribute('data-bind-text') as keyof T;
       bindText(el, key);
@@ -41,25 +67,35 @@ export function applyBindings<T extends Record<string, any>>(root: HTMLElement, 
       }
     }
 
+
+
+
     // Interpolation in plain text nodes
     if (el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE) {
       const originalText = el.textContent || '';
+      const mergedContext = { ...context, ...extraContext };
+      console.log(originalText, mergedContext,"ABCD")
       if (originalText.includes('{{')) {
-        const keyMatches = [...originalText.matchAll(/\{\{(.+?)\}\}/g)];
-        keyMatches.forEach(([, rawKey]) => {
-          const key = rawKey.trim() as keyof T;
-          store.subscribe(key, () => {
-            el.textContent = interpolate(originalText);
-          });
-        });
-        el.textContent = interpolate(originalText);
+
+        const update = () => {
+          el.textContent = interpolate(originalText, mergedContext);
+        };
+
+        // watch all store keys to re-evaluate
+        for (const key of Object.keys(store.state)) {
+          store.subscribe(key as keyof T, update);
+        }
+
+        update(); // initial render
       }
     }
 
-    for (const child of el.children) {
-      traverse(child as HTMLElement);
+    // Handle children
+    for (const child of Array.from(el.children)) {
+      console.log(child)
+      traverse(child as HTMLElement, context);
     }
   };
 
-  traverse(root);
+  traverse(root, extraContext);
 }
