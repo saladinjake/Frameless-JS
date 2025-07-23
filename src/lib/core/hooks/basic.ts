@@ -333,14 +333,72 @@ export function bind<T extends Record<string, any>>(store: {
 }
 
 
+// export function setupReactivity<T extends Record<string, any>>(
+//   store: {
+//     state: T;
+//     setState: <K extends keyof T>(key: K, val: T[K]) => void | any;
+//     subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
+//   } | any,
+//   root: HTMLElement | HTMLDivElement | Document = document
+// ) {
+//   const all = (sel: string) => root.querySelectorAll<HTMLElement>(sel);
+
+//   all('[data-bind], [data-model]').forEach((el) => {
+//     const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
+//     if (!key) return;
+
+//     const inputEl = el as HTMLInputElement;
+
+//     // ✅ Fallback: If store has no value for this key, read from DOM and set it
+//     if (store.state[key] === undefined || store.state[key] === null) {
+//       store.setState(key, inputEl.value);
+//       console.warn(`[setupReactivity] ${key} missing in store, initializing from DOM value = "${inputEl.value}"`);
+//     } else {
+//       inputEl.value = store.state[key] ?? '';
+//     }
+
+//     console.log(`[setupReactivity] model key = ${key}, initial value =`, store.state[key]);
+
+//     // 🔁 DOM → State
+//     el.addEventListener('input', (e) => {
+//       const target = e.target as HTMLInputElement;
+//       store.setState(key, target.value);
+//     });
+
+//     // 🔁 State → DOM
+//     store.subscribe(key, (val: any) => {
+//       if (inputEl.value !== val) {
+//         inputEl.value = val ?? '';
+//       }
+//     });
+//   });
+
+//   all('[data-bind-text]').forEach((el) => {
+//     const key = el.getAttribute('data-bind-text');
+//     if (!key) return;
+
+//     store.subscribe(key, (val: any) => {
+//       el.textContent = val ?? '';
+//     });
+//   });
+
+//   all('[data-bind-attr]').forEach((el) => {
+//     const pairs = el.getAttribute('data-bind-attr')?.split(',') ?? [];
+//     pairs.forEach((pair) => {
+//       const [attr, key] = pair.trim().split(':').map((x) => x.trim());
+//       store.subscribe(key, (val: any) => el.setAttribute(attr, val));
+//     });
+//   });
+// }
+
 
 export function setupReactivity<T extends Record<string, any>>(
   store: {
     state: T;
-    setState: <K extends keyof T>(key: K, val: T[K]) => void | any;
+    setState: <K extends keyof T>(key: K, val: T[K]) => void;
     subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
-  } | any,
-  root: HTMLElement| HTMLDivElement|  Document = document
+  },
+  root: HTMLElement | Document = document
 ) {
   const all = (sel: string) => root.querySelectorAll<HTMLElement>(sel);
 
@@ -348,22 +406,61 @@ export function setupReactivity<T extends Record<string, any>>(
     const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
     if (!key) return;
 
-    el.addEventListener('input', (e) => {
-      const target = e.target as HTMLInputElement;
-      store.setState(key, target.value);
+    const inputEl = el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+    const type = inputEl.getAttribute('type');
+
+    // --- INIT VALUE ---
+    if (store.state[key] === undefined || store.state[key] === null) {
+      let initialVal: any;
+
+      if (type === 'checkbox') {
+        initialVal = (inputEl as HTMLInputElement).checked;
+      } else if (type === 'radio') {
+        if ((inputEl as HTMLInputElement).checked) {
+          initialVal = inputEl.value;
+        }
+      } else if (inputEl instanceof HTMLSelectElement && inputEl.multiple) {
+        initialVal = Array.from(inputEl.selectedOptions).map(opt => opt.value);
+      } else {
+        initialVal = inputEl.value;
+      }
+
+      store.setState(key, initialVal);
+      console.warn(`[setupReactivity] [hydrate] "${key}" missing in store, initialized from DOM:`, initialVal);
+    } else {
+      hydrateInputValue(inputEl, store.state[key]);
+    }
+
+    // --- DOM → STATE ---
+    inputEl.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+      let val: any;
+
+      if (type === 'checkbox') {
+        val = (target as HTMLInputElement).checked;
+      } else if (type === 'radio') {
+        if ((target as HTMLInputElement).checked) {
+          val = target.value;
+        } else return;
+      } else if (target instanceof HTMLSelectElement && target.multiple) {
+        val = Array.from(target.selectedOptions).map(opt => opt.value);
+      } else {
+        val = target.value;
+      }
+
+      store.setState(key, val);
     });
 
+    // --- STATE → DOM ---
     store.subscribe(key, (val: any) => {
-      if ((el as HTMLInputElement).value !== val) {
-        (el as HTMLInputElement).value = val ?? '';
-      }
+      if (!inputEl) return;
+      updateInputValue(inputEl, val);
     });
   });
 
   all('[data-bind-text]').forEach((el) => {
     const key = el.getAttribute('data-bind-text');
     if (!key) return;
-
     store.subscribe(key, (val: any) => {
       el.textContent = val ?? '';
     });
@@ -373,10 +470,56 @@ export function setupReactivity<T extends Record<string, any>>(
     const pairs = el.getAttribute('data-bind-attr')?.split(',') ?? [];
     pairs.forEach((pair) => {
       const [attr, key] = pair.trim().split(':').map((x) => x.trim());
+      if (!attr || !key) return;
       store.subscribe(key, (val: any) => el.setAttribute(attr, val));
     });
   });
 }
+
+function hydrateInputValue(
+  el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+  val: any
+) {
+  const type = el.getAttribute('type');
+
+  if (type === 'checkbox') {
+    (el as HTMLInputElement).checked = Boolean(val);
+  } else if (type === 'radio') {
+    (el as HTMLInputElement).checked = el.value === val;
+  } else if (el instanceof HTMLSelectElement && el.multiple) {
+    Array.from(el.options).forEach(opt => {
+      opt.selected = Array.isArray(val) && val.includes(opt.value);
+    });
+  } else {
+    el.value = val ?? '';
+  }
+}
+
+function updateInputValue(
+  el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+  val: any
+) {
+  const type = el.getAttribute('type');
+
+  if (type === 'checkbox') {
+    const input = el as HTMLInputElement;
+    if (input.checked !== Boolean(val)) {
+      input.checked = Boolean(val);
+    }
+  } else if (type === 'radio') {
+    const input = el as HTMLInputElement;
+    input.checked = input.value === val;
+  } else if (el instanceof HTMLSelectElement && el.multiple) {
+    Array.from(el.options).forEach(opt => {
+      opt.selected = Array.isArray(val) && val.includes(opt.value);
+    });
+  } else {
+    if (el.value !== val) {
+      el.value = val ?? '';
+    }
+  }
+}
+
 
 type Props = Record<string, any>;
 // type State = Record<string, any>;
