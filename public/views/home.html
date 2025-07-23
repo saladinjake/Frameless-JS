@@ -4,9 +4,157 @@
 <div>
     <p>Welcome <span id="welcome"></span> to the home page.</p>
 </div>
-    <input data-bind="name" />
-  <p>Hello, <span data-bind-text="name"></span>!</p>
+<input data-bind="name" />
+<p>Hello, <span data-bind-text="name"></span>!</p>
 
-  <!--set section-->
-   <slot name="more1"></slot>
-  <slot name="more2"></slot>
+<!--set section-->
+<slot name="more1"></slot>
+<slot name="more2"></slot>
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Create Banking Customer</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 2rem;
+        }
+
+        form {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .col-span-3 {
+            grid-column: span 3;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        button {
+            padding: 0.7rem 1.5rem;
+            background: #0077cc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+
+        .dropzone {
+  border: 2px dashed #ccc;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.dropzone.drag-over {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+    </style>
+</head>
+
+<body>
+
+    <h1>Create Banking Customer</h1>
+
+    <form id="create-customer-form">
+        <div>
+            <label>First Name</label>
+            <input type="text" data-model="firstName" />
+        </div>
+        <div>
+            <label>Last Name</label>
+            <input type="text" data-model="lastName" />
+        </div>
+        <div>
+            <label>Email</label>
+            <input type="email" data-model="email" />
+        </div>
+        <div>
+            <label>Phone Number</label>
+            <input type="tel" data-model="phone" />
+        </div>
+
+        <div>
+            <!-- Input-based file upload -->
+            <input type="file" data-file="photo" accept="image/*" />
+            <span data-file-label="photo">No file selected</span>
+            <!-- <img data-file-preview="photo" style="max-width: 200px; display: block; margin-top: 1em;" /> -->
+
+
+
+        </div>
+
+        <!-- Drag-and-drop zone -->
+        <div data-dropzone="avatar" class="dropzone">
+            <p>Drop your image here or click to select</p>
+            <input type="file" data-file="avatar" accept="image/*" hidden />
+        </div>
+
+        <img data-preview="avatar" class="w-32 h-32 rounded-full mt-2" />
+
+
+
+        <div>
+            <label>Gender</label>
+            <select data-model="gender">
+                <option value="">Select</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+            </select>
+        </div>
+        <div>
+            <label>Date of Birth</label>
+            <input type="date" data-model="dob" />
+        </div>
+        <div class="col-span-3">
+            <label>Address</label>
+            <input type="text" data-model="address" />
+        </div>
+        <div>
+            <label>Account Type</label>
+            <select data-model="accountType">
+                <option value="">Select</option>
+                <option value="savings">Savings</option>
+                <option value="current">Current</option>
+                <option value="domiciliary">Domiciliary</option>
+            </select>
+        </div>
+        <div>
+            <label>Initial Deposit</label>
+            <input type="number" data-model="initialDeposit" />
+        </div>
+        <div>
+            <label>BVN</label>
+            <input type="text" data-model="bvn" />
+        </div>
+        <div class="col-span-3" style="margin-top: 1rem;">
+            <button type="submit" data-action="saveRecord">Create Account</button>
+        </div>
+    </form>
+
+    <script>
+  document.querySelector('[data-dropzone="avatar"]')?.addEventListener('click', () => {
+    document.querySelector('[data-file="avatar"]').click();
+  });
+</script>

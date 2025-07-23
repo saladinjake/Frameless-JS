@@ -123,23 +123,28 @@ export function bind<T extends Record<string, any>>(store: {
 }
 
 
-
 export function setupReactivity<T extends Record<string, any>>(
   store: {
     state: T;
     setState: <K extends keyof T>(key: K, val: T[K]) => void | any;
     subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
   } | any,
-  root: HTMLElement| HTMLDivElement|  Document = document
+  root: HTMLElement | Document = document
 ) {
   const all = (sel: string) => root.querySelectorAll<HTMLElement>(sel);
 
+  // Handle text/select inputs via data-bind / data-model
   all('[data-bind], [data-model]').forEach((el) => {
     const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
     if (!key) return;
 
+    // Init value on load
+    if ((el as HTMLInputElement).value !== store.state[key]) {
+      (el as HTMLInputElement).value = store.state[key] ?? '';
+    }
+
     el.addEventListener('input', (e) => {
-      const target = e.target as HTMLInputElement;
+      const target: any = e.target as HTMLInputElement;
       store.setState(key, target.value);
     });
 
@@ -150,6 +155,7 @@ export function setupReactivity<T extends Record<string, any>>(
     });
   });
 
+  // Handle text content updates
   all('[data-bind-text]').forEach((el) => {
     const key = el.getAttribute('data-bind-text');
     if (!key) return;
@@ -159,6 +165,7 @@ export function setupReactivity<T extends Record<string, any>>(
     });
   });
 
+  // Handle dynamic attributes
   all('[data-bind-attr]').forEach((el) => {
     const pairs = el.getAttribute('data-bind-attr')?.split(',') ?? [];
     pairs.forEach((pair) => {
@@ -166,7 +173,72 @@ export function setupReactivity<T extends Record<string, any>>(
       store.subscribe(key, (val: any) => el.setAttribute(attr, val));
     });
   });
+
+  // // File input support (data-file)
+  all('[data-file]').forEach((el) => {
+    const key = el.getAttribute('data-file');
+    if (!key) return;
+
+    const input = el as HTMLInputElement;
+
+    input.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      const file: any = target.files?.[0] || null;
+      store.setState(key, file);
+    });
+
+    store.subscribe(key, (val: File | null) => {
+      // You can't programmatically set input.files for security reasons
+      // Optional: Update filename preview
+      const label = root.querySelector<HTMLElement>(`[data-file-label="${key}"]`);
+      if (label) {
+        label.textContent = val?.name || 'No file selected';
+      }
+    });
+  });
+
+
+  // Drag and drop support
+  all('[data-dropzone]').forEach((dropzone) => {
+    const key = dropzone.getAttribute('data-dropzone');
+    if (!key) return;
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('drag-over');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      const file : any = e.dataTransfer?.files?.[0] ?? null;
+      if (file) store.setState(key, file);
+    });
+  });
+
+  // Image preview
+  all('[data-preview]').forEach((el) => {
+    const key = el.getAttribute('data-preview');
+    if (!key) return;
+
+    const img = el as HTMLImageElement;
+    store.subscribe(key, (val: any) => {
+      if (val instanceof File) {
+        const url = URL.createObjectURL(val);
+        img.src = url;
+      } else if (typeof val === 'string') {
+        img.src = val;
+      } else {
+        img.removeAttribute('src');
+      }
+    });
+  });
 }
+
 
 type Props = Record<string, any>;
 // type State = Record<string, any>;

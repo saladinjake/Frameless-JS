@@ -2,6 +2,8 @@ import { hydrateComponent } from '../hydrations/hydrateComponent';
 import { setupReactivity, watchEffect } from '../hooks/basic';
 import { getComponentLoader } from './defineComponent';
 import { bindPropsToStore } from '../utils';
+import { applyBindings } from '../bindings/interpolationBindings';
+import { interpolateBindings, processDirectives } from '../directives/processDirectives';
 
 const nativeTags = new Set([
   'html',
@@ -100,6 +102,8 @@ export async function resolveChildComponents(
   root: HTMLElement,
   parentContext: Record<string, any> = {}
 ): Promise<void> {
+
+  console.log(parentContext, "<<<<>>>")
   const customTags = [...root.querySelectorAll('*')].filter((el) =>
     isCustomComponent(el.tagName)
   );
@@ -118,7 +122,7 @@ export async function resolveChildComponents(
       const currentProps = extractProps(el);
       console.log(currentProps, 'changing...');
 
-      const instance: ComponentContext| any = await init({
+      const instance: ComponentContext | any = await init({
         ...parentContext,
         props: currentProps
       });
@@ -137,7 +141,7 @@ export async function resolveChildComponents(
       watchEffect({
         props: currentProps,
         store: instance.store,
-        callback: ({ props, state }: {props: any, state: any}) => {
+        callback: ({ props, state }: { props: any, state: any }) => {
           for (const [key, val] of Object.entries(props)) {
             console.log(currentProps, props, key, val, '..............');
             if (typeof state[key] === 'undefined') {
@@ -164,7 +168,7 @@ export async function resolveChildComponents(
       };
 
       if (instance.store) setupReactivity(instance.store, compRoot);
-      await hydrateComponent(compRoot, componentContext);
+      await hydrateComponent(compRoot, componentContext, currentProps);
 
       for (const tpl of Array.from(el.children)) {
         if (tpl.tagName === 'TEMPLATE') {
@@ -184,13 +188,22 @@ export async function resolveChildComponents(
       const hydratedChildren = Array.from(compRoot.children);
       el.replaceWith(...hydratedChildren);
 
-      hydratedChildren.forEach((child) => {
-        if (instance.store) setupReactivity(instance.store, child as HTMLElement);
-      });
+
 
       if (typeof instance.onMount === 'function') {
-        requestAnimationFrame(() => {
-          instance.onMount?.({ ...componentContext });
+        requestAnimationFrame(async () => {
+          hydratedChildren.forEach((child) => {
+            if (instance.store) setupReactivity(instance.store, child as HTMLElement);
+          });
+          console.log(instance, "setUp")
+          instance.onMount?.({ ...componentContext, ...instance, ...instance?.props  });
+          if (instance.actions) {
+            //  Must run interpolation and directives after final DOM is resolved
+            interpolateBindings(root, parentContext?.store, { ...parentContext?.props }); // Handles {{ }}
+            processDirectives(root, parentContext?.store, { ...parentContext?.props });   // Handles x-if, x-for, x-on, etc.
+            applyBindings(root, parentContext?.store, { ...parentContext?.props });              // Additional binding logic
+            //    bindActions(app, actions)
+          }
         });
       }
     } catch (err) {

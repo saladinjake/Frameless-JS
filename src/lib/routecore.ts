@@ -221,7 +221,7 @@ export async function slotAwareRender({
   match = null
 }: RenderOptions): Promise<void> {
   const props = { ...params };
-  const baseContext = { app, params, props };
+  let baseContext = { app, params, props };
   const viewDOM = htmlToDOM(viewHTML);
   let finalDOM = viewDOM;
   let actions: ComponentActions = {};
@@ -267,6 +267,7 @@ export async function slotAwareRender({
         actions = await module.init({ ...baseContext }) || {};
         const { template } = actions;
         // Apply interpolation BEFORE anything else
+        
    
         // interpolateBindings(domClone, actions.store || {}, { ...props, ...actions?.props });
 
@@ -323,7 +324,7 @@ let bindObserver: any;
     await hydrateComponent(domClone, {
       ...baseContext,
       ...actions,
-      props: { ...props, ...actions?.props },
+      props: { ...props, ...actions?.props , ...baseContext, ...actions},
     });
     
 
@@ -333,8 +334,8 @@ let bindObserver: any;
     // Hydrate child components inside rendered view
     await resolveChildComponents(domClone, {
       ...baseContext,
-      ...actions,
-      props: { ...props, ...actions?.props }
+      ...actions.props,
+      props: { ...props, ...actions?.props, ...baseContext, ...actions }
     });
 
     // Diff and mount to DOM
@@ -369,7 +370,6 @@ let bindObserver: any;
     // Final hook
     route.onLoad?.();
   };
-
 
   await renderView();
 

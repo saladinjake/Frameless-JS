@@ -16,6 +16,20 @@
   </template>
 </partial>
 
+
+<div id="app">
+  <input type="text" x-model="newItem" placeholder="Add item..." />
+  <button x-on:click="addItem()">Add</button>
+
+  <ul>
+    <li x-for="(item, i) in items" x-for-item>
+      <span x-text="i + 1"></span>. <span x-text="item"></span>
+      <button x-on:click="removeItem(i)">Remove</button>
+    </li>
+  </ul>
+</div>
+
+
 <script>
 console.log("workis")
 </script>

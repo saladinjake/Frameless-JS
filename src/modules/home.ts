@@ -6,21 +6,46 @@ import { useStore, defineComponent } from "../lib/main";
 defineComponent('my-profile', () => Promise.resolve({ init: MyProfile }));
 
 export function init({ props = {} }) {
- 
+
+  //SAMPLE EXAMPLE
+  // const store = useStore({
+  //   name: 'Victor',
+  //   image: 'https://placekitten.com/200/200',
+  // });
+
+
+  //FULL FORM BINDING EXAMPPLE
+
+
+
   const store = useStore({
-    name: 'Victor',
-    image: 'https://placekitten.com/200/200',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    gender: '',
+    dob: '',
+    address: '',
+    accountType: '',
+    initialDeposit: '',
+    bvn: '',
+    //  passport: null as File | null,
+      photo: null as File | null,
   });
+
+
+
 
   return {
     store,
+    props,
     template: `
     <main>
      <h2>Welcom to Frameless</h2>
      <div slot="header">Main Section</div>
       <div slot="sidebar">
        
-        <my-profile :bio="this is a demo"></my-profile>
+        <my-profile :bio="this is a demo"  :age="44"></my-profile>
       </div>
 
       <div style="margin-top:20px">
@@ -50,10 +75,22 @@ export function init({ props = {} }) {
     `,
     onMount(option: any) {
       console.log('[home.js] Mounted', option);
+
+
+
+
+
     },
     onDestroy() {
       console.log('[home.js] Destroyed');
     },
+
+    saveRecord(){
+       // Gather form data
+        const customerData = { ...store.state };
+
+        console.log('Submitting Customer:', customerData);
+    }
   };
 }
 
