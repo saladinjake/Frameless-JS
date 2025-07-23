@@ -1,10 +1,13 @@
-// import { routes } from '../AppRoutes';
-// import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
+
+
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity, } from './core/hooks/basic';
+import { setupReactivity, useStore } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
-import { loadModule } from './core/utils';
+import { loadModule } from './core/kernel/fileloader.kernel';
 import { applyBindings } from './core/bindings/interpolationBindings';
+import { processDirectives, interpolateBindings } from './core/directives/processDirectives';
+import { bindActionsWithObserver } from './core/bindings/mutationObservers/bindMutations';
+import { observeInterpolationBindings } from './core/bindings/mutationObservers/interpolationMutation';
 
 const loadedScriptSrcs = new Set<string>();
 const DEFAULT_ROUTE = 'home';
@@ -24,11 +27,7 @@ interface Route {
   onLoad?: () => void;
 }
 
-// interface MatchResult {
-//   route: Route;
-//   match: RegExpMatchArray | null;
-//   params: Record<string, string>;
-// }
+
 
 declare global {
   interface Window {
@@ -51,6 +50,9 @@ function getRouteAndParams(): { path: string; params: Record<string, string> } {
   const params = Object.fromEntries(new URLSearchParams(qs));
   return { path, params };
 }
+
+
+
 
 function matchRoute(path: string, routes: Route[]): { route: Route; match: RegExpMatchArray | null; params: Record<string, string> } | null {
   const tryMatch = (tryPath: string) => {
@@ -204,148 +206,10 @@ interface ComponentActions {
   [key: string]: any;
 }
 
-// export async function slotAwareRender({
-//   app,
-//   route,
-//   viewHTML,
-//   layoutHTML,
-//   params,
-//   match = null
-// }: RenderOptions): Promise<void> {
-//   const props = { ...params };
-//   const baseContext = { app, params, props };
-//   const viewDOM = htmlToDOM(viewHTML);
-//   let finalDOM = viewDOM;
-//   let actions: ComponentActions = {};
-//   let module: any;
-
-//   console.log(match)
-
-//   if (layoutHTML) {
-//     const layoutDOM = htmlToDOM(layoutHTML);
-//     injectSlots(layoutDOM, viewDOM);
-//     finalDOM = layoutDOM;
-//   }
-
-//   if (route.styles || route.style) {
-//     const stylePaths: any = Array.isArray(route.styles || route.style)
-//       ? (route.styles || route.style)
-//       : [route.style];
-//     for (const stylePath of stylePaths) {
-//       const res = await fetch(stylePath);
-//       const css = await res.text();
-//       applyScopedStyle(css, `scoped-style-${route.path}`);
-//     }
-//   }
-
-//   const renderView = async (): Promise<void> => {
-//     const domClone = finalDOM.cloneNode(true) as HTMLElement;
-
-//     if (route.script || route.scripts) {
-//       const scriptPaths: any = Array.isArray(route.scripts || route.script)
-//         ? (route.scripts || route.script)
-//         : [route.script];
-
-//       module = await loadModule(`${scriptPaths[0]}`, route.scriptBase || 'modules');
-
-//       if (typeof module.init === 'function') {
-//         actions = await module.init({ ...baseContext }) || {};
-//         const { template } = actions;
-
-//         if (template && typeof template === 'string') {
-//           const container = document.createElement('div');
-//           container.innerHTML = template;
-
-//           for (const el of [...container.children]) {
-//             const slot = el.getAttribute('slot') || null;
-
-//             await hydrateComponent(el as HTMLElement, {
-//               ...baseContext,
-//               ...actions,
-//               props: { ...props },
-//             });
-
-//             const target = slot
-//               ? domClone.querySelector(`slot[name="${slot}"]`)
-//               : domClone.querySelector('slot:not([name])');
-
-//             if (target) target.replaceWith(el);
-//           }
-//         }
-
-//         requestAnimationFrame(() => {
-//           actions.onMount?.({ ...baseContext, ...actions, props });
-//           if (actions.store) setupReactivity(actions.store, app);
-//           currentDestroy = () => actions.onDestroy?.();
-//         });
-//       }
-//     }
-
-//     await hydrateComponent(domClone, {
-//       ...baseContext,
-//       ...actions,
-//       props: { ...props },
-//     });
-
-//     await resolveChildComponents(domClone, {
-//       ...baseContext,
-//       ...actions,
-//       props: { ...props },
-//     });
-
-
-
-//     requestAnimationFrame(() => {
-//       if (!app || !domClone || !domClone.children) {
-//         console.warn('[hydrate] Skipping patch - app or domClone is null');
-//         return;
-//       }
-
-//       shallowDiffAndPatch(app, domClone.children);
-
-//       Array.from(app.children).forEach((child: any) => {
-//         if (actions.store) setupReactivity(actions.store, child);
-//       });
-//     });
-
-
-//     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
-//     for (const oldScript of doc.querySelectorAll('script')) {
-//       const newScript = document.createElement('script');
-//       if (oldScript.src) {
-//         if (loadedScriptSrcs.has(oldScript.src)) continue;
-//         newScript.src = oldScript.src;
-//         loadedScriptSrcs.add(oldScript.src);
-//       } else {
-//         newScript.textContent = oldScript.textContent;
-//       }
-//       if (oldScript.type) newScript.type = oldScript.type;
-//       document.body.appendChild(newScript);
-//     }
-
-//     route.onLoad?.();
-//   };
-
-//   await renderView();
-
-//   // watchEffect({
-//   //   props,
-//   //   store: actions.store,
-//   //   callback: async ({ props: newProps, state }: { props: any, state: any }) => {
-//   //     if (typeof actions.onPropsChanged === 'function') {
-//   //       await actions.onPropsChanged({
-//   //         props: newProps,
-//   //         state,
-//   //         context: { ...baseContext, ...actions },
-//   //       });
-//   //     }
-
-//   //     console.log('[slotAwareRender] Watch triggered', { newProps, state });
-//   //     await renderView();
-//   //   },
-//   // });
-// }
-
+type Actions = {
+  store?: ReturnType<typeof useStore>;
+  props?: Record<string, any>;
+};
 
 
 export async function slotAwareRender({
@@ -389,6 +253,9 @@ export async function slotAwareRender({
   const renderView = async (): Promise<void> => {
     const domClone = finalDOM.cloneNode(true) as HTMLElement;
 
+
+
+    // Hydrate layout slots/components
     if (route.script || route.scripts) {
       const scriptPaths: any = Array.isArray(route.scripts || route.script)
         ? (route.scripts || route.script)
@@ -399,6 +266,10 @@ export async function slotAwareRender({
       if (typeof module.init === 'function') {
         actions = await module.init({ ...baseContext }) || {};
         const { template } = actions;
+        // Apply interpolation BEFORE anything else
+   
+        // interpolateBindings(domClone, actions.store || {}, { ...props, ...actions?.props });
+
 
         if (template && typeof template === 'string') {
           const container = document.createElement('div');
@@ -410,7 +281,7 @@ export async function slotAwareRender({
             await hydrateComponent(el as HTMLElement, {
               ...baseContext,
               ...actions,
-              props: { ...props },
+              props: { ...actions?.props, ...props },
             });
 
             const target = slot
@@ -420,33 +291,53 @@ export async function slotAwareRender({
             if (target) target.replaceWith(el);
           }
         }
-
+   
+let interpolationObserver: any
+let bindObserver: any;
         requestAnimationFrame(() => {
-          actions.onMount?.({ ...baseContext, ...actions, props });
-          if (actions.store) setupReactivity(actions.store, app);
-          currentDestroy = () => actions.onDestroy?.();
+          actions.onMount?.({ ...baseContext, ...actions, ...props, ...actions?.props });
+          setTimeout(() => {
+            if (actions.store) {
+              setupReactivity(actions.store, app);
+            }
+          }, 400)
+
+          // Delay binding to ensure DOM is updated
+          setTimeout(() => {
+           interpolationObserver =  observeInterpolationBindings(domClone, actions.store || {}, { ...props, ...actions?.props });
+           bindObserver = bindActionsWithObserver(app, actions);
+          }, 0);
+
+
+
+          currentDestroy = () => {
+            actions.onDestroy?.();
+           bindObserver?.disconnect()
+           interpolationObserver.disconnect()
+          }
         });
       }
     }
 
+    // Hydrate view itself
     await hydrateComponent(domClone, {
       ...baseContext,
       ...actions,
-      props: { ...props },
+      props: { ...props, ...actions?.props },
     });
+    
 
-    // ✅ NEW: Apply interpolation + bindings (data-bind-text / data-model)
-    if (actions.store) {
-      applyBindings(domClone, actions.store);
-    }
 
+
+
+    // Hydrate child components inside rendered view
     await resolveChildComponents(domClone, {
       ...baseContext,
       ...actions,
-      props: { ...props },
+      props: { ...props, ...actions?.props }
     });
 
-    // DOM diff patch
+    // Diff and mount to DOM
     requestAnimationFrame(() => {
       if (!app || !domClone || !domClone.children) {
         console.warn('[hydrate] Skipping patch - app or domClone is null');
@@ -460,7 +351,7 @@ export async function slotAwareRender({
       });
     });
 
-    // Re-execute any <script> tags in HTML (inline or external)
+    // Execute scripts
     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
     for (const oldScript of doc.querySelectorAll('script')) {
       const newScript = document.createElement('script');
@@ -475,29 +366,13 @@ export async function slotAwareRender({
       document.body.appendChild(newScript);
     }
 
-    // Final route hook
+    // Final hook
     route.onLoad?.();
   };
 
+
   await renderView();
 
-  // Optional future enhancement: reactivity-driven re-render
-  // watchEffect({
-  //   props,
-  //   store: actions.store,
-  //   callback: async ({ props: newProps, state }: { props: any, state: any }) => {
-  //     if (typeof actions.onPropsChanged === 'function') {
-  //       await actions.onPropsChanged({
-  //         props: newProps,
-  //         state,
-  //         context: { ...baseContext, ...actions },
-  //       });
-  //     }
-
-  //     console.log('[slotAwareRender] Watch triggered', { newProps, state });
-  //     await renderView();
-  //   },
-  // });
 }
 
 
@@ -713,7 +588,7 @@ export async function loadPage(
       match,
     });
 
-   
+
 
     console.log('running...');
   } catch (err) {
@@ -725,3 +600,6 @@ export function handleHashChange(app: HTMLElement | Document | any = document.ge
 
   handleRoute(app, routes);
 }
+
+
+

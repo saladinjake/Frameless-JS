@@ -1,0 +1,42 @@
+<div class="todo-app">
+  <h2>Todo List</h2>
+
+ 
+<input x-model="newItem" placeholder="New todo" />
+<button x-bind:disabled="!newItem" @click="addItem">Add</button>
+  <button x-show="newItem" x-on:click="clearInput">Cancel</button>
+
+  <p>You are typing: {{ newItem }}</p>
+
+ <ul>
+  <li x-for="(todo, i) in items">
+    {{ i + 1 }}. {{ todo }}
+    <button x-on:click="removeItem(i)">Remove</button>
+  </li>
+</ul>
+
+
+
+
+
+  <p x-if="items.length === 0">No items yet. Add one above!</p>
+</div>
+
+<!-- 
+<div id="app">
+  <h2>{{ title }}</h2>
+
+  <input type="text" x-model="newTodo" placeholder="Add a todo..." />
+  <button x-bind:disabled="!newTodo" @click="addTodo">Add</button>
+
+  <p x-if="newTodo">You are typing: {{ newTodo }}</p>
+
+  <ul>
+    <li x-for="todo in todos" :key="todo.id">
+      <span x-text="todo.text"></span>
+      <button @click="removeTodo(todo.id)">Cancel</button>
+    </li>
+  </ul>
+
+  <p x-show="todos.length === 0">No todos yet.</p>
+</div> -->

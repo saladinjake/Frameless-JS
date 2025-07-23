@@ -55,6 +55,15 @@ export const routes = [
     layout: './views/layouts/default.html',
     scripts: ['modules/Login/Login'], // accepts array of string
   },
+
+   {
+    path: 'todos',
+    view: './src/modules/Todo/todo.html',
+    onLoad: () => console.log('Todo loaded'),
+    layout:  null , // './views/layouts/default.html',
+    scripts: ['modules/Todo/Todo'], // accepts array of string
+  },
+
   {
     path: 'profile/:id', // /^profile\/(\d+)$/,
     view: './views/profile.html',
