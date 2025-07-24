@@ -8,6 +8,13 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictBindCallApply": false,
+    "strictPropertyInitialization": false,
+
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -18,7 +25,7 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    "strict": true,
+    
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true

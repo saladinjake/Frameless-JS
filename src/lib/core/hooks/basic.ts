@@ -9,7 +9,9 @@ export function useStore<T extends Record<string, any>>(initialState: T) {
     fns.forEach(fn => fn(state[key]));
   };
 
-  const state = new Proxy(rawState, {
+
+
+  const state: any = new Proxy(rawState, {
     get(target, prop, receiver) {
       if (typeof prop === 'string' && prop in target) {
         return target[prop as keyof T];
@@ -34,7 +36,7 @@ export function useStore<T extends Record<string, any>>(initialState: T) {
     setState<K extends keyof T>(key: K, val: T[K]) {
       state[key] = val;
     },
-    subscribe<K extends keyof T>(key: K, fn:  any /*(val: T[K]) => void | any*/) {
+    subscribe<K extends keyof T>(key: K, fn: any /*(val: T[K]) => void | any*/) {
       if (!subscribers.has(key)) subscribers.set(key, []);
       subscribers.get(key)!.push(fn);
       fn(state[key]); // initial run
@@ -45,106 +47,32 @@ export function useStore<T extends Record<string, any>>(initialState: T) {
         this.subscribe(key as keyof T, () => fn());
       });
     },
+
+    migrateKeyIfNeeded(expectedKey: any) {
+      if ('value' in state && !(expectedKey in state)) {
+        // Migrate
+        state[expectedKey] = state['value'];
+        delete state['value'];
+
+        // Move subscribers
+        const subs = subscribers.get('value' as keyof T);
+        if (subs) {
+          subscribers.set(expectedKey as keyof T, subs);
+          subscribers.delete('value' as keyof T);
+        }
+
+        // Notify new key
+        notify(expectedKey as keyof T);
+
+        console.warn(`[useStore] Migrated 'value' → '${expectedKey}' for better dev ergonomics.`);
+      }
+    }
+
+
   };
 }
 
 
-// export function useStore<T extends Record<string, any>>(initialState: T) {
-//   const subscribers = new Map<keyof T, ((value: T[keyof T]) => void)[]>();
-
-//   const notify = (key: keyof T) => {
-//     const fns = subscribers.get(key) || [];
-//     fns.forEach(fn => fn(state[key]));
-//   };
-
-//   // Deep reactive wrapper
-//   function reactiveify(obj: any, parentKey?: keyof T): any {
-//     if (typeof obj !== 'object' || obj === null) return obj;
-
-//     if (Array.isArray(obj)) {
-//       const proxy = new Proxy(obj, {
-//         get(target, prop, receiver) {
-//           const value = Reflect.get(target, prop, receiver);
-//           if (
-//             typeof prop === 'string' &&
-//             ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'].includes(prop)
-//           ) {
-//             return (...args: any[]) => {
-//               const result = (value as Function).apply(target, args);
-//               if (parentKey) notify(parentKey);
-//               return result;
-//             };
-//           }
-//           return reactiveify(value, parentKey);
-//         },
-//         set(target, prop, value, receiver) {
-//           const result = Reflect.set(target, prop, reactiveify(value, parentKey), receiver);
-//           if (parentKey) notify(parentKey);
-//           return result;
-//         },
-//       });
-//       return proxy;
-//     }
-
-//     const proxy = new Proxy(obj, {
-//       get(target, prop, receiver) {
-//         return reactiveify(Reflect.get(target, prop, receiver), parentKey);
-//       },
-//       set(target, prop, value, receiver) {
-//         const result = Reflect.set(target, prop, reactiveify(value, parentKey), receiver);
-//         if (parentKey) notify(parentKey);
-//         return result;
-//       },
-//     });
-
-//     return proxy;
-//   }
-
-//   // Initialize rawState with reactive values
-//   const rawState = {} as T;
-//   for (const key in initialState) {
-//     rawState[key] = reactiveify(initialState[key], key);
-//   }
-
-//   // Directly use a Proxy on rawState instead of a dummy proxy delegator
-//   const state = new Proxy(rawState, {
-//     get(target, prop, receiver) {
-//       return Reflect.get(target, prop, receiver);
-//     },
-//     set(target, prop, value, receiver) {
-//       const result = Reflect.set(target, prop, reactiveify(value, prop as keyof T), receiver);
-//       notify(prop as keyof T);
-//       return result;
-//     },
-//     ownKeys(target) {
-//       return Reflect.ownKeys(target); // needed for Object.keys(state)
-//     },
-//     getOwnPropertyDescriptor(target, prop) {
-//       return Reflect.getOwnPropertyDescriptor(target, prop); // needed for Object.keys(state)
-//     },
-//   });
-
-//   return {
-//     state,
-
-//     setState<K extends keyof T>(key: K, val: T[K]) {
-//       state[key] = val;
-//     },
-
-//     subscribe<K extends keyof T>(key: K, fn: any) {
-//       if (!subscribers.has(key)) subscribers.set(key, []);
-//       subscribers.get(key)!.push(fn);
-//       fn(state[key]); // initial run
-//     },
-
-//     watch(fn: () => void) {
-//       fn(); // initial run
-//       Object.keys(state).forEach(key => {
-//         this.subscribe(key as keyof T, () => fn());
-//       });
-//     },
-//   };
-// }
 
 
 
@@ -333,63 +261,6 @@ export function bind<T extends Record<string, any>>(store: {
 }
 
 
-// export function setupReactivity<T extends Record<string, any>>(
-//   store: {
-//     state: T;
-//     setState: <K extends keyof T>(key: K, val: T[K]) => void | any;
-//     subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
-//   } | any,
-//   root: HTMLElement | HTMLDivElement | Document = document
-// ) {
-//   const all = (sel: string) => root.querySelectorAll<HTMLElement>(sel);
-
-//   all('[data-bind], [data-model]').forEach((el) => {
-//     const key = el.getAttribute('data-bind') || el.getAttribute('data-model');
-//     if (!key) return;
-
-//     const inputEl = el as HTMLInputElement;
-
-//     // ✅ Fallback: If store has no value for this key, read from DOM and set it
-//     if (store.state[key] === undefined || store.state[key] === null) {
-//       store.setState(key, inputEl.value);
-//       console.warn(`[setupReactivity] ${key} missing in store, initializing from DOM value = "${inputEl.value}"`);
-//     } else {
-//       inputEl.value = store.state[key] ?? '';
-//     }
-
-//     console.log(`[setupReactivity] model key = ${key}, initial value =`, store.state[key]);
-
-//     // 🔁 DOM → State
-//     el.addEventListener('input', (e) => {
-//       const target = e.target as HTMLInputElement;
-//       store.setState(key, target.value);
-//     });
-
-//     // 🔁 State → DOM
-//     store.subscribe(key, (val: any) => {
-//       if (inputEl.value !== val) {
-//         inputEl.value = val ?? '';
-//       }
-//     });
-//   });
-
-//   all('[data-bind-text]').forEach((el) => {
-//     const key = el.getAttribute('data-bind-text');
-//     if (!key) return;
-
-//     store.subscribe(key, (val: any) => {
-//       el.textContent = val ?? '';
-//     });
-//   });
-
-//   all('[data-bind-attr]').forEach((el) => {
-//     const pairs = el.getAttribute('data-bind-attr')?.split(',') ?? [];
-//     pairs.forEach((pair) => {
-//       const [attr, key] = pair.trim().split(':').map((x) => x.trim());
-//       store.subscribe(key, (val: any) => el.setAttribute(attr, val));
-//     });
-//   });
-// }
 
 
 export function setupReactivity<T extends Record<string, any>>(
@@ -543,7 +414,7 @@ export function watchEffect<T extends Record<string, any>>({
     subscribe: <K extends keyof T>(key: K, cb: () => void) => void;
   } | any;
   callback: (args: { props: Props; state: T }) => void;
-}  |  WatchEffectArgs) {
+} | WatchEffectArgs) {
   if (!store || typeof callback !== 'function') return;
 
   let lastProps = JSON.stringify(props);

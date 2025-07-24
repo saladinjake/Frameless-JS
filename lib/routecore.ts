@@ -1,7 +1,7 @@
 // import { routes } from '../AppRoutes';
 // import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity,  } from './core/hooks/basic';
+import { setupReactivity, } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
 import { loadModule } from './core/utils';
 
@@ -226,16 +226,26 @@ export async function slotAwareRender({
     finalDOM = layoutDOM;
   }
 
-  if (route.styles || route.style) {
-    const stylePaths: any = Array.isArray(route.styles || route.style)
-      ? (route.styles || route.style)
-      : [route.style];
-    for (const stylePath of stylePaths) {
-      const res = await fetch(stylePath);
-      const css = await res.text();
-      applyScopedStyle(css, `scoped-style-${route.path}`);
+  const rawStyles = route.styles ?? route.style;
+
+  const stylePaths: string[] = Array.isArray(rawStyles)
+    ? rawStyles
+    : typeof rawStyles === 'string'
+      ? [rawStyles]
+      : [];
+
+  for (const stylePath of stylePaths ?? []) {
+    if (typeof stylePath === 'string') {
+      try {
+        const css = await (await fetch(stylePath)).text();
+
+        applyScopedStyle(css, `scoped-style-${route.path}`);
+      } catch (err) {
+        console.warn(`Failed to fetch style from: ${stylePath}`, err);
+      }
     }
   }
+
 
   const renderView = async (): Promise<void> => {
     const domClone = finalDOM.cloneNode(true) as HTMLElement;
@@ -245,7 +255,16 @@ export async function slotAwareRender({
         ? (route.scripts || route.script)
         : [route.script];
 
-      module = await loadModule(`${scriptPaths[0]}`, route.scriptBase || 'modules');
+      // Add optional chaining and type check
+      const firstScript = Array.isArray(scriptPaths) ? scriptPaths[0] : scriptPaths;
+      if (typeof firstScript === 'string') {
+        module = await loadModule(firstScript, route.scriptBase || 'modules');
+      }
+
+
+
+
+
 
       if (typeof module.init === 'function') {
         actions = await module.init({ ...baseContext }) || {};
@@ -346,161 +365,6 @@ export async function slotAwareRender({
 }
 
 
-// export async function slotAwareRender({
-//   app,
-//   route,
-//   viewHTML,
-//   layoutHTML,
-//   params,
-// }) {
-//   const props = { ...params };
-//   const baseContext = { app, params, props };
-//   const viewDOM = htmlToDOM(viewHTML);
-//   let finalDOM = viewDOM;
-
-//   const collectedActions = [];
-//   const allStores = [];
-
-//   if (layoutHTML) {
-//     const layoutDOM = htmlToDOM(layoutHTML);
-//     injectSlots(layoutDOM, viewDOM);
-//     finalDOM = layoutDOM;
-//   }
-
-//   // Load styles
-//   if (route.styles || route.style) {
-//     const stylePaths = Array.isArray(route.styles || route.style)
-//       ? route.styles || route.style
-//       : [route.style];
-
-//     for (const stylePath of stylePaths) {
-//       try {
-//         const res = await fetch(stylePath);
-//         const css = await res.text();
-//         applyScopedStyle(css, `scoped-style-${route.path}`);
-//       } catch (err) {
-//         console.warn(
-//           `[slotAwareRender] Failed to load style: ${stylePath}`,
-//           err,
-//         );
-//       }
-//     }
-//   }
-
-//   const renderView = async () => {
-//     const domClone = finalDOM.cloneNode(true);
-
-//     const rawScriptPaths = Array.isArray(route.scripts || route.script)
-//       ? route.scripts || []
-//       : route.script
-//         ? [route.script]
-//         : [];
-
-//     for (const rawPath of rawScriptPaths) {
-//       try {
-//         const mod = await loadModule(rawPath, route.scriptBase || 'modules');
-
-//         if (mod?.init && typeof mod.init === 'function') {
-//           const actions = (await mod.init({ ...baseContext })) || {};
-//           collectedActions.push(actions);
-//           if (actions.store) allStores.push(actions.store);
-
-//           const template = actions.template;
-//           if (template && typeof template === 'string') {
-//             const container = document.createElement('div');
-//             container.innerHTML = template;
-
-//             for (const el of [...container.children]) {
-//               const slot = el.getAttribute('slot') || null;
-//               await hydrateComponent(el, {
-//                 ...baseContext,
-//                 ...actions,
-//                 props: { ...props },
-//               });
-
-//               const target = slot
-//                 ? domClone.querySelector(`slot[name="${slot}"]`)
-//                 : domClone.querySelector('slot:not([name])');
-
-//               if (target) target.replaceWith(el);
-//             }
-//           }
-
-//           requestAnimationFrame(() => {
-//             actions.onMount?.({ ...baseContext, ...actions, props });
-//           });
-
-//           // Save destroy hook
-//           window.__currentDestroy = () => actions.onDestroy?.();
-//         }
-//       } catch (err) {
-//         console.error(
-//           `[slotAwareRender] Failed to import script: ${rawPath}`,
-//           err,
-//         );
-//       }
-//     }
-
-//     await hydrateComponent(domClone, {
-//       ...baseContext,
-//       props: { ...props },
-//     });
-
-//     await resolveChildComponents(domClone, {
-//       ...baseContext,
-//       props: { ...props },
-//     });
-
-//     requestAnimationFrame(() => {
-//       shallowDiffAndPatch(app, domClone.children);
-//       for (const child of app.children) {
-//         for (const store of allStores) {
-//           setupReactivity(store, child);
-//         }
-//       }
-//     });
-
-//     // Load <script> tags from viewHTML
-//     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
-//     for (const oldScript of doc.querySelectorAll('script')) {
-//       const newScript = document.createElement('script');
-//       if (oldScript.src) {
-//         if (loadedScriptSrcs.has(oldScript.src)) continue;
-//         newScript.src = oldScript.src;
-//         loadedScriptSrcs.add(oldScript.src);
-//       } else {
-//         newScript.textContent = oldScript.textContent;
-//       }
-//       if (oldScript.type) newScript.type = oldScript.type;
-//       document.body.appendChild(newScript);
-//     }
-
-//     route?.onLoad?.();
-//   };
-
-//   await renderView();
-
-//   for (const actions of collectedActions) {
-//     if (actions.store) {
-//       watchEffect({
-//         props,
-//         store: actions.store,
-//         callback: async ({ props: newProps, state }) => {
-//           if (typeof actions.onPropsChanged === 'function') {
-//             await actions.onPropsChanged({
-//               props: newProps,
-//               state,
-//               context: { ...baseContext, ...actions },
-//             });
-//           }
-
-//           console.log('[slotAwareRender] Watch triggered', { newProps, state });
-//           await renderView();
-//         },
-//       });
-//     }
-//   }
-// }
 
 
 export function handleRoute(app: HTMLElement, routes: Route[]): void {
@@ -606,7 +470,7 @@ export async function loadPage(
   params: Record<string, any> = {},
   match: RegExpMatchArray | null = null
 ): Promise<void> {
-  
+
   try {
     window.__currentDestroy?.();
 
@@ -631,6 +495,6 @@ export async function loadPage(
   }
 }
 export function handleHashChange(app: HTMLElement | Document | any = document.getElementById("app"), routes: Route[]): void {
- 
+
   handleRoute(app, routes);
 }

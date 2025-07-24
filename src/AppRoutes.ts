@@ -56,6 +56,15 @@ export const routes = [
     scripts: ['modules/Login/Login'], // accepts array of string
   },
 
+
+   {
+    path: 'use-states',
+    view: './src/modules/States/states.html',
+    onLoad: () => console.log('Login loaded'),
+    layout: './views/layouts/default.html',
+    scripts: ['modules/States/States'], // accepts array of string
+  },
+
    {
     path: 'todos',
     view: './src/modules/Todo/todo.html',
@@ -103,10 +112,10 @@ export const routes = [
     path: 'contact',
     view: './views/contact.html',
     layout: './views/layouts/default.html',
-    middleware: () => {
-      console.log('Checking something before showing contact');
-      return confirm('Do you really want to view the contact page?');
-    },
+    // middleware: () => {
+    //   console.log('Checking something before showing contact');
+    //   return confirm('Do you really want to view the contact page?');
+    // },
   },
 
   /// test life cycle

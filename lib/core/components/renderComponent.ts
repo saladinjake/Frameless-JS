@@ -6,19 +6,24 @@ type Props = Record<string, any>;
 type State = Record<string, any>;
 
 
-interface Store {
-  state: State;
-  setState: (key: string, value: any) => void;
-}
 
-interface ComponentInstance {
+type Store<T extends Record<string, any>> = {
+  state: T;
+  setState: <K extends keyof T>(key: K, val: T[K]) => void;
+  subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
+  props?: any;
+  app?: any;
+  actions?: any
+};
+
+interface ComponentInstance<T extends Record<string, any> = State> {
   template?: string;
-  store?: Store;
+  store?: Store<T>;
   onMount?: (ctx: any) => void;
-  onPropsChanged?: (ctx: { props: Props; state: State }) => void;
+  onPropsChanged?: (ctx: { props: Props; state: T }) => void;
 }
 
-type ComponentFn = (props: Props) => ComponentInstance;
+
 
 /**
  * Renders a component and sets up its reactive lifecycle.
@@ -27,8 +32,11 @@ type ComponentFn = (props: Props) => ComponentInstance;
  * @param props - Initial props to pass to the component.
  * @returns HTMLElement root of the component.
  */
-export function renderComponent(ComponentFn: ComponentFn, props: Props = {}): HTMLElement {
-  const instance = ComponentFn(props);
+export function renderComponent<T extends State = State>(
+  ComponentFn: (props: Props) => ComponentInstance<T>,
+  props: Props = {}
+): HTMLElement {
+  const instance: any = ComponentFn(props);
   const wrapper = document.createElement('div');
 
   // Default to <slot> if no template
@@ -70,9 +78,9 @@ export function renderComponent(ComponentFn: ComponentFn, props: Props = {}): HT
           }
         }
 
-        if (typeof instance.onPropsChanged === 'function') {
-          instance.onPropsChanged({ props, state });
-        }
+        // if (typeof instance.onPropsChanged === 'function') {
+        //   instance.onPropsChanged({ props, state });
+        // }
       },
     });
   }
@@ -80,7 +88,7 @@ export function renderComponent(ComponentFn: ComponentFn, props: Props = {}): HT
   // Hydrate and call lifecycle hooks after DOM paints
   requestAnimationFrame(async () => {
     if (instance.store) {
-      setupReactivity(instance.store, root);
+      setupReactivity(instance.store as any, root);
     }
 
     await hydrateComponent(root, context);

@@ -123,12 +123,17 @@ export function bind<T extends Record<string, any>>(store: {
 }
 
 
-export function setupReactivity<T extends Record<string, any>>(
-  store: {
-    state: T;
-    setState: <K extends keyof T>(key: K, val: T[K]) => void | any;
-    subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
-  } | any,
+// type Store<T extends Record<string, any>> = {
+//   state: T;
+//   setState: <K extends keyof T>(key: K, val: T[K]) => void;
+//   subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
+//   props?: any;
+//   app?: any;
+//   actions?: any
+// };
+
+export function setupReactivity/*<T extends Record<string, any>>*/(
+  store: any,
   root: HTMLElement | Document = document
 ) {
   const all = (sel: string) => root.querySelectorAll<HTMLElement>(sel);
