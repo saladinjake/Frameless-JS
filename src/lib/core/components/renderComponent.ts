@@ -80,7 +80,7 @@ export function renderComponent(ComponentFn: ComponentFn, props: Props = {}): HT
   // Hydrate and call lifecycle hooks after DOM paints
   requestAnimationFrame(async () => {
     if (instance.store) {
-      setupReactivity(instance.store, root);
+      setupReactivity(instance.store as any, root);
     }
 
     await hydrateComponent(root, context);

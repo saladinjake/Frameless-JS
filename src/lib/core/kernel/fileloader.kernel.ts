@@ -2,7 +2,7 @@
 
 
 export const loadModule = async (
-  path: string,
+  path: any,
   basePath?: string
 ): Promise<any> => {
   const modules: Record<string, () => Promise<any>> = import.meta.glob('/src/**/*.{js,ts}');
