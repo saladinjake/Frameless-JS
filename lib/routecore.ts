@@ -234,11 +234,11 @@ export async function slotAwareRender({
       ? [rawStyles]
       : [];
 
-  for (const stylePath of stylePaths) {
+  for (const stylePath of stylePaths ?? []) {
     if (typeof stylePath === 'string') {
       try {
-        const res = await fetch(stylePath);
-        const css = await res.text();
+        const css = await (await fetch(stylePath)).text();
+
         applyScopedStyle(css, `scoped-style-${route.path}`);
       } catch (err) {
         console.warn(`Failed to fetch style from: ${stylePath}`, err);
@@ -255,10 +255,12 @@ export async function slotAwareRender({
         ? (route.scripts || route.script)
         : [route.script];
 
-      if (typeof scriptPaths?.[0] === 'string') {
-        const filePath = scriptPaths[0] || ""
-        module = await loadModule(filePath, route.scriptBase || 'modules');
+      // Add optional chaining and type check
+      const firstScript = Array.isArray(scriptPaths) ? scriptPaths[0] : scriptPaths;
+      if (typeof firstScript === 'string') {
+        module = await loadModule(firstScript, route.scriptBase || 'modules');
       }
+
 
 
 
