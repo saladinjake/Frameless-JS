@@ -2,7 +2,7 @@
   "name": "frameless-js",
   "author": "Victor Juwa",
   "private": false,
-  "version": "0.0.7",
+  "version": "0.0.8",
   "type": "module",
   "main": "dist/cjs/main.js",
   "module": "dist/esm/main.js",
@@ -73,7 +73,6 @@
     "vite-plugin-lib-inject-css": "^2.1.1"
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.38.7",
-    "frameless-js": "^0.0.5"
+    "@ast-grep/napi": "^0.38.7"
   }
 }

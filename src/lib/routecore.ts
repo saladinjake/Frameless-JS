@@ -404,10 +404,15 @@ export async function slotAwareRender({
     ? (route.styles || route.style)
     : route.style ? [route.style] : [];
 
-  for (const path of stylePaths) {
+ const paths = Array.isArray(stylePaths) ? stylePaths : (stylePaths ? [stylePaths] : []);
+
+for (const path of paths) {
+  if (typeof path === "string") {
     const css = await (await fetch(path)).text();
     applyScopedStyle(css, `scoped-style-${route.path}`);
   }
+}
+
 
   // 3. Clean up previous state if any
   currentDestroy?.();
@@ -418,11 +423,14 @@ export async function slotAwareRender({
 
     // 5. Load module
     if (route.script || route.scripts) {
-      const scripts = Array.isArray(route.scripts || route.script)
-        ? route.scripts || route.script
-        : [route.script];
+      const scripts = route.scripts ?? route.script ?? [];
+      const scriptList = Array.isArray(scripts) ? scripts : [scripts];
+      const newScript = scriptList[0];
 
-      module = await loadModule(scripts[0], route.scriptBase || 'modules');
+      if (typeof newScript === 'string' && newScript.trim().length > 0) {
+        module = await loadModule(newScript, route.scriptBase || 'modules');
+      }
+
 
       if (typeof module?.init === 'function') {
         actions = await module.init({ ...baseContext }) || {};
