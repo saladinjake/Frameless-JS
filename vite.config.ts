@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import { resolve } from 'path';
 import dts from 'vite-plugin-dts';
 import { glob } from 'glob';
@@ -11,7 +11,7 @@ const postFix = '?.html-import';
 const postFixRe = /[?#][\s\S]*$/;
 const cleanUrl = (url: string) => url.replace(postFixRe, '');
 
-const htmlImportBuild = () => ({
+const htmlImportBuild = (): any => ({
   name: 'html-import:build',
   enforce: 'pre',
   apply: 'build',
@@ -32,7 +32,7 @@ const htmlImportBuild = () => ({
   },
 });
 
-const htmlImportServe = () => ({
+const htmlImportServe = () : Plugin => ({
   name: 'html-import:serve',
   apply: 'serve',
   transform(src: any, id: any) {
@@ -59,8 +59,8 @@ export default defineConfig({
       tsconfigPath: resolve(__dirname, 'tsconfig.lib.json'),
       outDir: 'dist/types',
     }),
-    // htmlImportBuild(),
-    // htmlImportServe(),
+    htmlImportBuild(),
+    htmlImportServe(),
   ],
   build: {
     copyPublicDir: false,

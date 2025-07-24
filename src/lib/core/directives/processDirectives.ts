@@ -15,6 +15,7 @@ const directiveWatchers = new WeakMap<HTMLElement, Watcher[]>();
 export function processDirectives(root: HTMLElement | DocumentFragment| any, store: any, props: any = {}) {
   interpolateBindings(root, store, props); // 1. Interpolation
 
+  console.log(store.state, "nnn")
   const nodes = root.querySelectorAll('*');
   nodes.forEach( (el: any) => {
     if (!(el instanceof HTMLElement)) return;
@@ -67,6 +68,7 @@ export function processDirectives(root: HTMLElement | DocumentFragment| any, sto
 
 
 export function safeEval(expr: string, state: any = {}, props: any = {}) {
+  console.log(expr, state, "<<>>....")
   try {
     return Function('state', 'props', `with(state) with(props) { return ${expr} }`)(state, props);
   } catch (err) {
@@ -226,6 +228,7 @@ export function applyXBind(el: HTMLElement, store: any, props: any) {
 }
 
 export function applyXBindColon(el: HTMLElement, store: any, props: any) {
+
   [...el.attributes].forEach(attr => {
     if (attr.name.startsWith('x-bind:')) {
       const attrName = attr.name.split(':')[1];

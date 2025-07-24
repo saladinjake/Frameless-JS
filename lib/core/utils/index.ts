@@ -69,8 +69,8 @@ export function syncStoreAndProps(
 
 
 export const loadModule = async (
-  path: string,
-  basePath?: string
+  path: any,
+  basePath?: string | any
 ): Promise<any> => {
   const modules: Record<string, () => Promise<any>> = import.meta.glob('/src/**/*.{js,ts}');
 console.log(basePath)

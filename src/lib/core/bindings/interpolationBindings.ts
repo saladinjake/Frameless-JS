@@ -24,19 +24,44 @@ export function applyBindings<T extends Record<string, any>>(root: HTMLElement |
   //   });
   // };
 
-  function interpolate(str: string, context: Record<string, any> = {}) {
-    return str.replace(/\{\{(.+?)\}\}/g, (_, expr) => {
-      try {
-        // Build a function with local scope injected
-        const fn = new Function(...Object.keys(context), ...Object.keys(store.state), `return ${expr};`);
-        return fn(...Object.values(context), ...Object.values(store.state));
-      } catch (err) {
-        console.warn('Interpolation error in expression:', expr, err);
-        return '';
-      }
-    });
-  }
 
+  function interpolate(str: string, context: Record<string, any> = {}) {
+  return str.replace(/\{\{(.+?)\}\}/g, (_, expr) => {
+    try {
+      const expected = expr.trim(); // what template is trying to access, e.g., 'text'
+
+      const stateKeys = Object.keys(store.state);
+      const stateValues = Object.values(store.state);
+
+      let actualKeys = [...Object.keys(context), ...stateKeys];
+      let actualValues = [...Object.values(context), ...stateValues];
+
+      // 💡 Migration alias: if store has only `value` but template uses `text`, alias `value -> text`
+      if (
+        stateKeys.length === 1 &&
+        stateKeys[0] === "value" &&
+        !(expected in store.state)
+      ) {
+        // inject alias
+        actualKeys.push(expected);
+        actualValues.push(store.state.value);
+
+        //  Helpful debug hint for devs
+        if (import.meta.env?.DEV || typeof process !== "undefined") {
+          console.info(
+            `[DevHint] Aliasing 'value' → '${expected}' during interpolation. Consider renaming in store for clarity.`
+          );
+        }
+      }
+
+      const fn = new Function(...actualKeys, `return ${expr};`);
+      return fn(...actualValues);
+    } catch (err) {
+      console.warn("Interpolation error in expression:", expr, err);
+      return "";
+    }
+  });
+}
 
   const bindText = (el: HTMLElement, key: keyof T) => {
     store.subscribe(key, (val) => {
