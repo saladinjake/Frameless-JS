@@ -1,42 +1,51 @@
-function navigate(path: string, query = {}) {
-  const queryStr = new URLSearchParams(query).toString();
-  location.hash = queryStr ? `#${path}?${queryStr}` : `#${path}`;
-}
-let isAuth = false;
-function checkLoginStatus(boolVal: boolean) {
-  // toggle
-  isAuth = boolVal;
-  return isAuth;
-}
+import {
+  configureRegistry,
+  loadModule,
+  loadTemplate,
+  loadStyle,
+} from './lib/core/registry';
+import {
+  scriptModules,
+  templateFiles,
+  styleFiles,
+} from './registry';
 
-export async function loadTemplate(path: string) {
-  try {
-    // Attempt to load from public folder
-    const res = await fetch(path);
-    if (!res.ok) throw new Error('Not found in public');
-    return await res.text();
-  } catch (e) {
-    console.warn(`[TemplateLoader] Falling back to src for: ${path}`);
+configureRegistry({
+  scripts: scriptModules,
+  templates: templateFiles,
+  styles: styleFiles,
+});
 
-    // Use Vite dynamic glob import from src (non-eager, async)
-    const pages = import.meta.glob('/src/**/*.{html,txt}', {
-      as: 'raw',
-      eager: false,
-    });
 
-    const filename = path.split('/').pop() || '';
-    const matchedKey = Object.keys(pages).find((key) =>
-      key.endsWith(`/${filename}`),
-    );
 
-    if (!matchedKey) {
-      throw new Error(`Template '${filename}' not found in src fallback`);
-    }
+// export async function loadTemplate(path: string) {
+//   try {
+//     // Attempt to load from public folder
+//     const res = await fetch(path);
+//     if (!res.ok) throw new Error('Not found in public');
+//     return await res.text();
+//   } catch (e) {
+//     console.warn(`[TemplateLoader] Falling back to src for: ${path}`);
 
-    // Call the lazy-loaded function
-    return pages[matchedKey]();
-  }
-}
+//     // Use Vite dynamic glob import from src (non-eager, async)
+//     const pages = import.meta.glob('/src/**/*.{html,txt}', {
+//       as: 'raw',
+//       eager: false,
+//     });
+
+//     const filename = path.split('/').pop() || '';
+//     const matchedKey = Object.keys(pages).find((key) =>
+//       key.endsWith(`/${filename}`),
+//     );
+
+//     if (!matchedKey) {
+//       throw new Error(`Template '${filename}' not found in src fallback`);
+//     }
+
+//     // Call the lazy-loaded function
+//     return pages[matchedKey]();
+//   }
+// }
 
 export const routes = [
   {
@@ -79,21 +88,8 @@ export const routes = [
     onLoad: () => console.log('Profile loaded'),
     layout: './views/layouts/default.html',
     middleware: async (params: any) => {
-      // midleware by params value
-      console.log(params, '>>>>');
-      if (params?.user) {
-        if (params.user != 'banned') return true;
-        return false;
-      }
-
-      // meddle ware by function call
-      const toggleTestValue = !!params.user;
-      const user = await checkLoginStatus(toggleTestValue);
-      if (!user) {
-        location.hash = '#login';
-        return false;
-      }
-      return true;
+      console.log(params)
+      return true
     },
     script: ['modules/about'], // accepts array of string
   },

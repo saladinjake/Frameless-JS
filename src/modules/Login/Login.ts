@@ -1,8 +1,8 @@
-// import LoginTemplate from './components/Login.html';
+import LoginTemplate from './components/Login.html?raw';
 
-// export function init({ params} : {params: any}) {
-//   return {
-//     template: LoginTemplate,
-//     onMount() {},
-//   };
-// }
+export function init({ params} : {params: any}) {
+  return {
+    template: LoginTemplate,
+    onMount() {},
+  };
+}
