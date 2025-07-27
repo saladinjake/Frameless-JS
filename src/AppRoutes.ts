@@ -1,13 +1,3 @@
-function navigate(path: string, query = {}) {
-  const queryStr = new URLSearchParams(query).toString();
-  location.hash = queryStr ? `#${path}?${queryStr}` : `#${path}`;
-}
-let isAuth = false;
-function checkLoginStatus(boolVal: boolean) {
-  // toggle
-  isAuth = boolVal;
-  return isAuth;
-}
 
 export async function loadTemplate(path: string) {
   try {
@@ -79,20 +69,7 @@ export const routes = [
     onLoad: () => console.log('Profile loaded'),
     layout: './views/layouts/default.html',
     middleware: async (params: any) => {
-      // midleware by params value
-      console.log(params, '>>>>');
-      if (params?.user) {
-        if (params.user != 'banned') return true;
-        return false;
-      }
-
-      // meddle ware by function call
-      const toggleTestValue = !!params.user;
-      const user = await checkLoginStatus(toggleTestValue);
-      if (!user) {
-        location.hash = '#login';
-        return false;
-      }
+     
       return true;
     },
     script: ['modules/about'], // accepts array of string

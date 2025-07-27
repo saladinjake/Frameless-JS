@@ -5,11 +5,11 @@ export function init(ctx: any) {
 
   return {
     state: {
-      count: countStore.state.value, // ✅ proxy access
-      text: textStore.state.value,   // ✅ proxy access
+      count: countStore.state.value, 
+      text: textStore.state.value,   // proxy access
     },
     store: textStore,
-    increment: () => setCount(prev => prev + 1),
+    increment: () => setCount( (prev: any) => prev + 1),
     updateText: (e: any) => setText(e.target.value),
     onMount() {
       console.log("Mounted with", count, text);

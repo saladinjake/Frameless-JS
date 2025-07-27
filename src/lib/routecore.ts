@@ -1,7 +1,7 @@
 
 
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity, useStore } from './core/hooks/basic';
+import { setupReactivity } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
 import { loadModule } from './core/kernel/fileloader.kernel';
 // import { applyBindings } from './core/bindings/interpolationBindings';
@@ -206,311 +206,130 @@ interface ComponentActions {
   [key: string]: any;
 }
 
-type Actions = {
-  store?: ReturnType<typeof useStore>;
-  props?: Record<string, any>;
-};
-
-
-// export async function slotAwareRender({
-//   app,
-//   route,
-//   viewHTML,
-//   layoutHTML,
-//   params,
-//   match = null
-// }: RenderOptions): Promise<void> {
-//   const props = { ...params };
-//   let baseContext = { app, params, props };
-//   const viewDOM = htmlToDOM(viewHTML);
-//   let finalDOM = viewDOM;
-//   let actions: ComponentActions = {};
-//   let module: any;
-
-//   // If layout provided, inject slots into layout
-//   if (layoutHTML) {
-//     const layoutDOM = htmlToDOM(layoutHTML);
-//     injectSlots(layoutDOM, viewDOM);
-//     finalDOM = layoutDOM;
-//   }
-
-//   // Load scoped styles (CSS)
-//   if (route.styles || route.style) {
-//     const stylePaths: any = Array.isArray(route.styles || route.style)
-//       ? (route.styles || route.style)
-//       : [route.style];
-
-//     for (const stylePath of stylePaths) {
-//       const res = await fetch(stylePath);
-//       const css = await res.text();
-//       applyScopedStyle(css, `scoped-style-${route.path}`);
-//     }
-//   }
-
-//   // Main render logic
-//   const renderView = async (): Promise<void> => {
-//     const domClone = finalDOM.cloneNode(true) as HTMLElement;
-
-//     // Hydrate layout slots/components
-//     if (route.script || route.scripts) {
-//       const scriptPaths: any = Array.isArray(route.scripts || route.script)
-//         ? (route.scripts || route.script)
-//         : [route.script];
-
-//       module = await loadModule(`${scriptPaths[0]}`, route.scriptBase || 'modules');
-
-//       if (typeof module.init === 'function') {
-
-//         actions = await module.init({ ...baseContext }) || {};
-//         const { template } = actions;
-
-
-//         if (template && typeof template === 'string') {
-//           const container = document.createElement('div');
-//           container.innerHTML = template;
-
-//           for (const el of [...container.children]) {
-//             const slot = el.getAttribute('slot') || null;
-
-//             await hydrateComponent(el as HTMLElement, {
-//               ...baseContext,
-//               ...actions,
-//               props: { ...actions?.props, ...props },
-//             });
-
-//             const target = slot
-//               ? domClone.querySelector(`slot[name="${slot}"]`)
-//               : domClone.querySelector('slot:not([name])');
-
-//             if (target) target.replaceWith(el);
-//           }
-//         }
-
-//         let interpolationObserver: any
-//         let bindObserver: any;
-//         requestAnimationFrame(() => {
-//           actions.onMount?.({ ...baseContext, ...actions, ...props, ...actions?.props });
-//           setTimeout(() => {
-//             // Setup reactivity on both store and state if provided
-
-
-//             if (actions.store) setupReactivity(actions.store, app);
-
-
-//           }, 400)
-
-
-//           const reactiveSources = {
-//             ...(actions.store || {}),
-//             // ...(actions.state || {}) // unwrap proxied state
-//           };
-
-//           // Delay binding to ensure DOM is updated
-//           setTimeout(() => {
-//             interpolationObserver = observeInterpolationBindings(domClone, reactiveSources, { ...props, ...actions?.props });
-//             bindObserver = bindActionsWithObserver(app, actions);
-//           }, 0);
+// type Actions = {
+//   store?: ReturnType<typeof useStore>;
+//   props?: Record<string, any>;
+// };
 
 
 
-//           currentDestroy = () => {
-//             actions.onDestroy?.();
-//             bindObserver?.disconnect()
-//             interpolationObserver.disconnect()
-//           }
-//         });
-//       }
-//     }
-
-//     // Hydrate view itself
-//     await hydrateComponent(domClone, {
-//       ...baseContext,
-//       ...actions,
-//       props: { ...props, ...actions?.props, ...baseContext, ...actions },
-//     });
-
-
-
-
-
-//     // Hydrate child components inside rendered view
-//     await resolveChildComponents(domClone, {
-//       ...baseContext,
-//       ...actions.props,
-//       props: { ...props, ...actions?.props, ...baseContext, ...actions }
-//     });
-
-//     // Diff and mount to DOM
-//     requestAnimationFrame(() => {
-//       if (!app || !domClone || !domClone.children) {
-//         console.warn('[hydrate] Skipping patch - app or domClone is null');
-//         return;
-//       }
-
-//       shallowDiffAndPatch(app, domClone.children);
-
-//       Array.from(app.children).forEach((child: any) => {
-//         if (actions.store) setupReactivity(actions.store, child);
-//       });
-//     });
-
-//     // Execute scripts
-//     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
-//     for (const oldScript of doc.querySelectorAll('script')) {
-//       const newScript = document.createElement('script');
-//       if (oldScript.src) {
-//         if (loadedScriptSrcs.has(oldScript.src)) continue;
-//         newScript.src = oldScript.src;
-//         loadedScriptSrcs.add(oldScript.src);
-//       } else {
-//         newScript.textContent = oldScript.textContent;
-//       }
-//       if (oldScript.type) newScript.type = oldScript.type;
-//       document.body.appendChild(newScript);
-//     }
-
-//     // Final hook
-//     route.onLoad?.();
-//   };
-
-//   await renderView();
-
-// }
 export async function slotAwareRender({
   app,
   route,
   viewHTML,
   layoutHTML,
   params,
-  match = null,
+  match = null
 }: RenderOptions): Promise<void> {
   const props = { ...params };
-  const baseContext = { app, params, props };
+  let baseContext = { app, params, props };
+  const viewDOM = htmlToDOM(viewHTML);
+  let finalDOM = viewDOM;
   let actions: ComponentActions = {};
   let module: any;
 
-  const viewDOM = htmlToDOM(viewHTML);
-  let finalDOM = viewDOM;
-
-  // 1. Handle layout if provided
+  // If layout provided, inject slots into layout
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
-    injectSlots(layoutDOM, viewDOM); // inject <slot> with view content
+    injectSlots(layoutDOM, viewDOM);
     finalDOM = layoutDOM;
   }
 
-  // 2. Load scoped styles
-  const stylePaths = Array.isArray(route.styles || route.style)
-    ? (route.styles || route.style)
-    : route.style ? [route.style] : [];
+  // Load scoped styles (CSS)
+  if (route.styles || route.style) {
+    const stylePaths: any = Array.isArray(route.styles || route.style)
+      ? (route.styles || route.style)
+      : [route.style];
 
- const paths = Array.isArray(stylePaths) ? stylePaths : (stylePaths ? [stylePaths] : []);
-
-for (const path of paths) {
-  if (typeof path === "string") {
-    const css = await (await fetch(path)).text();
-    applyScopedStyle(css, `scoped-style-${route.path}`);
+    for (const stylePath of stylePaths) {
+      const res = await fetch(stylePath);
+      const css = await res.text();
+      applyScopedStyle(css, `scoped-style-${route.path}`);
+    }
   }
-}
 
-
-  // 3. Clean up previous state if any
-  currentDestroy?.();
-
-  // 4. Render process
-  const renderView = async () => {
+  // Main render logic
+  const renderView = async (): Promise<void> => {
     const domClone = finalDOM.cloneNode(true) as HTMLElement;
 
-    // 5. Load module
+    // Hydrate layout slots/components
     if (route.script || route.scripts) {
-      const scripts = route.scripts ?? route.script ?? [];
-      const scriptList = Array.isArray(scripts) ? scripts : [scripts];
-      const newScript = scriptList[0];
-
-      if (typeof newScript === 'string' && newScript.trim().length > 0) {
-        module = await loadModule(newScript, route.scriptBase || 'modules');
-      }
-
-
-      if (typeof module?.init === 'function') {
+      const scriptPaths: any = Array.isArray(route.scripts || route.script)
+        ? (route.scripts || route.script)
+        : [route.script];
+      module = await loadModule(`${scriptPaths[0]}`, route.scriptBase || 'modules');
+      if (typeof module.init === 'function') {
         actions = await module.init({ ...baseContext }) || {};
-        const mergedProps = { ...props, ...(actions.props || {}) };
-
-        // 6. Replace slots if template is given
-        if (actions.template && typeof actions.template === 'string') {
+        const { template } = actions;
+        if (template && typeof template === 'string') {
           const container = document.createElement('div');
-          container.innerHTML = actions.template;
-
+          container.innerHTML = template;
           for (const el of [...container.children]) {
             const slot = el.getAttribute('slot') || null;
+            await hydrateComponent(el as HTMLElement, {
+              ...baseContext,
+              ...actions,
+              props: { ...actions?.props, ...props },
+            });
             const target = slot
               ? domClone.querySelector(`slot[name="${slot}"]`)
               : domClone.querySelector('slot:not([name])');
-
-            if (target) {
-              await hydrateComponent(el as HTMLElement, {
-                ...baseContext,
-                ...actions,
-                props: mergedProps,
-              });
-              target.replaceWith(el);
-            }
+            if (target) target.replaceWith(el);
           }
         }
 
-        // 7. Set up reactive state before anything
-        const reactiveSources = actions.store || {};
-        setupReactivity(reactiveSources, app);
-
-        // 8. Run interpolation before binding
-        const interpolationObserver = observeInterpolationBindings(domClone, reactiveSources, mergedProps);
-
-        // 9. Bind declared actions like click handlers
-        const bindObserver = bindActionsWithObserver(app, actions);
-
-        // 10. Hydrate the full DOM tree
-        await hydrateComponent(domClone, {
-          ...baseContext,
-          ...actions,
-          props: mergedProps,
-        });
-
-        // 11. Hydrate any <component> children
-        await resolveChildComponents(domClone, {
-          ...baseContext,
-          ...actions,
-          props: mergedProps,
-        });
-
-        // 12. Patch the DOM in
+        let interpolationObserver: any
+        let bindObserver: any;
         requestAnimationFrame(() => {
-          shallowDiffAndPatch(app, domClone.children);
+          actions.onMount?.({ ...baseContext, ...actions, ...props, ...actions?.props });
+          setTimeout(() => {
+            // Setup reactivity on both store and state if provided
+            if (actions.store) setupReactivity(actions.store, app);
+          }, 400)
+          const reactiveSources = {
+            ...(actions.store || {}),
+            // ...(actions.state || {}) // unwrap proxied state
+          };
+          // Delay binding to ensure DOM is updated
+          setTimeout(() => {
+            interpolationObserver = observeInterpolationBindings(domClone, reactiveSources, { ...props, ...actions?.props });
+            bindObserver = bindActionsWithObserver(app, actions);
+          }, 0);
 
-          // Re-apply reactivity on direct children
-          if (actions.store) {
-            Array.from(app.children).forEach(child => {
-              setupReactivity(actions.store, child as HTMLElement);
-            });
-          }
-
-          // 13. Call mount hook
-          actions.onMount?.({
-            ...baseContext,
-            ...actions,
-            props: mergedProps,
-          });
-
-          // 14. Setup destroy hook
           currentDestroy = () => {
             actions.onDestroy?.();
-            bindObserver?.disconnect();
-            interpolationObserver?.disconnect?.();
-          };
+            bindObserver?.disconnect()
+            interpolationObserver.disconnect()
+          }
         });
       }
     }
 
-    // 15. Inline <script> execution (non-module)
+    // Hydrate view itself
+    await hydrateComponent(domClone, {
+      ...baseContext,
+      ...actions,
+      props: { ...props, ...actions?.props, ...baseContext, ...actions },
+    });
+    // Hydrate child components inside rendered view
+    await resolveChildComponents(domClone, {
+      ...baseContext,
+      ...actions.props,
+      props: { ...props, ...actions?.props, ...baseContext, ...actions }
+    });
+    // Diff and mount to DOM
+    requestAnimationFrame(() => {
+      if (!app || !domClone || !domClone.children) {
+        console.warn('[hydrate] Skipping patch - app or domClone is null');
+        return;
+      }
+      shallowDiffAndPatch(app, domClone.children);
+      Array.from(app.children).forEach((child: any) => {
+        if (actions.store) setupReactivity(actions.store, child);
+      });
+    });
+
+    // Execute scripts
     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
     for (const oldScript of doc.querySelectorAll('script')) {
       const newScript = document.createElement('script');
@@ -524,13 +343,13 @@ for (const path of paths) {
       if (oldScript.type) newScript.type = oldScript.type;
       document.body.appendChild(newScript);
     }
-
-    // 16. Route-level lifecycle
+    // Final hook
     route.onLoad?.();
   };
-
   await renderView();
+
 }
+
 
 
 
@@ -539,28 +358,22 @@ export function handleRoute(app: HTMLElement, routes: Route[]): void {
     history.replaceState(null, '', `#${DEFAULT_ROUTE}`);
     return;
   }
-
   const { path, params } = getRouteAndParams();
   const queryParams: any = params.queryParams;
   let targetPath = path;
-
   if (!location.hash || path === DEFAULT_ROUTE) {
     targetPath = DEFAULT_ROUTE;
     if (!location.hash) {
       history.replaceState(null, '', `#${DEFAULT_ROUTE}`);
     }
   }
-
   const matched = matchRoute(targetPath, routes);
-
   if (matched) {
     const { route, match, params: pathParams } = matched;
-
     const combinedParams: Record<string, string> = {
       ...(queryParams || {}),
       ...(pathParams || {}),
     };
-
     loadPage(app, route, combinedParams, match);
   } else {
     app.innerHTML = `<h2>404 - Not Found</h2>`;
@@ -576,25 +389,20 @@ export function handleRoute(app: HTMLElement, routes: Route[]): void {
  */
 export async function fallbackImportFromSrc(filename: string): Promise<string> {
   const cleanFilename = filename.replace(/^\/+/, '').replace(/^src\//, '');
-
   const templates: any = import.meta.glob('/src/**/*.{html,txt}', {
     as: 'raw',
     eager: false,
   });
-
   const candidates = Object.keys(templates);
-
   // Try to match based on common patterns
   const match = candidates.find(key =>
     key.endsWith(`/${cleanFilename}`) || key.endsWith(`src/${cleanFilename}`) || key.endsWith(cleanFilename)
   );
-
   if (!match) {
     console.error(`[fallbackImportFromSrc] Not found: '${filename}'`);
     console.error('Searched keys:', candidates);
     throw new Error(`[fallbackImportFromSrc] '${filename}' not found in src`);
   }
-
   try {
     return await templates[match]();
   } catch (err: any) {
@@ -744,10 +552,6 @@ export async function loadPage(
       params,
       match,
     });
-
-
-
-    console.log('running...');
   } catch (err) {
     console.error('Render error:', err);
     app.innerHTML = `<h2>Error loading page</h2>`;

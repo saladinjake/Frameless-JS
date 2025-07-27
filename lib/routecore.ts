@@ -1,9 +1,13 @@
-// import { routes } from '../AppRoutes';
-// import { globalMiddleware } from './Plugins/utils/middlewares/middlewares';
+
+
 import { hydrateComponent } from './core/hydrations/hydrateComponent';
-import { setupReactivity, } from './core/hooks/basic';
+import { setupReactivity } from './core/hooks/basic';
 import { resolveChildComponents } from './core/components/resolveChildComponent';
-import { loadModule } from './core/utils';
+import { loadModule } from './core/kernel/fileloader.kernel';
+// import { applyBindings } from './core/bindings/interpolationBindings';
+// import { processDirectives, interpolateBindings } from './core/directives/processDirectives';
+import { bindActionsWithObserver } from './core/bindings/mutationObservers/bindMutations';
+import { observeInterpolationBindings } from './core/bindings/mutationObservers/interpolationMutation';
 
 const loadedScriptSrcs = new Set<string>();
 const DEFAULT_ROUTE = 'home';
@@ -23,11 +27,7 @@ interface Route {
   onLoad?: () => void;
 }
 
-// interface MatchResult {
-//   route: Route;
-//   match: RegExpMatchArray | null;
-//   params: Record<string, string>;
-// }
+
 
 declare global {
   interface Window {
@@ -50,6 +50,9 @@ function getRouteAndParams(): { path: string; params: Record<string, string> } {
   const params = Object.fromEntries(new URLSearchParams(qs));
   return { path, params };
 }
+
+
+
 
 function matchRoute(path: string, routes: Route[]): { route: Route; match: RegExpMatchArray | null; params: Record<string, string> } | null {
   const tryMatch = (tryPath: string) => {
@@ -203,130 +206,148 @@ interface ComponentActions {
   [key: string]: any;
 }
 
+// type Actions = {
+//   store?: ReturnType<typeof useStore>;
+//   props?: Record<string, any>;
+// };
+
+
 export async function slotAwareRender({
   app,
   route,
   viewHTML,
   layoutHTML,
   params,
-  match = null
+  match = null,
 }: RenderOptions): Promise<void> {
   const props = { ...params };
   const baseContext = { app, params, props };
-  const viewDOM = htmlToDOM(viewHTML);
-  let finalDOM = viewDOM;
   let actions: ComponentActions = {};
   let module: any;
-
   console.log(match)
 
+  const viewDOM = htmlToDOM(viewHTML);
+  let finalDOM = viewDOM;
+
+  // 1. Handle layout if provided
   if (layoutHTML) {
     const layoutDOM = htmlToDOM(layoutHTML);
-    injectSlots(layoutDOM, viewDOM);
+    injectSlots(layoutDOM, viewDOM); // inject <slot> with view content
     finalDOM = layoutDOM;
   }
 
-  const rawStyles = route.styles ?? route.style;
+  // 2. Load scoped styles
+  const stylePaths = Array.isArray(route.styles || route.style)
+    ? (route.styles || route.style)
+    : route.style ? [route.style] : [];
 
-  const stylePaths: string[] = Array.isArray(rawStyles)
-    ? rawStyles
-    : typeof rawStyles === 'string'
-      ? [rawStyles]
-      : [];
+ const paths = Array.isArray(stylePaths) ? stylePaths : (stylePaths ? [stylePaths] : []);
 
-  for (const stylePath of stylePaths ?? []) {
-    if (typeof stylePath === 'string') {
-      try {
-        const css = await (await fetch(stylePath)).text();
-
-        applyScopedStyle(css, `scoped-style-${route.path}`);
-      } catch (err) {
-        console.warn(`Failed to fetch style from: ${stylePath}`, err);
-      }
-    }
+for (const path of paths) {
+  if (typeof path === "string") {
+    const css = await (await fetch(path)).text();
+    applyScopedStyle(css, `scoped-style-${route.path}`);
   }
+}
 
 
-  const renderView = async (): Promise<void> => {
+  // 3. Clean up previous state if any
+  currentDestroy?.();
+
+  // 4. Render process
+  const renderView = async () => {
     const domClone = finalDOM.cloneNode(true) as HTMLElement;
 
+    // 5. Load module
     if (route.script || route.scripts) {
-      const scriptPaths: any = Array.isArray(route.scripts || route.script)
-        ? (route.scripts || route.script)
-        : [route.script];
+      const scripts = route.scripts ?? route.script ?? [];
+      const scriptList = Array.isArray(scripts) ? scripts : [scripts];
+      const newScript = scriptList[0];
 
-      // Add optional chaining and type check
-      const firstScript = Array.isArray(scriptPaths) ? scriptPaths[0] : scriptPaths;
-      if (typeof firstScript === 'string') {
-        module = await loadModule(firstScript, route.scriptBase || 'modules');
+      if (typeof newScript === 'string' && newScript.trim().length > 0) {
+        module = await loadModule(newScript, route.scriptBase || 'modules');
       }
 
 
-
-
-
-
-      if (typeof module.init === 'function') {
+      if (typeof module?.init === 'function') {
         actions = await module.init({ ...baseContext }) || {};
-        const { template } = actions;
+        const mergedProps = { ...props, ...(actions.props || {}) };
 
-        if (template && typeof template === 'string') {
+        // 6. Replace slots if template is given
+        if (actions.template && typeof actions.template === 'string') {
           const container = document.createElement('div');
-          container.innerHTML = template;
+          container.innerHTML = actions.template;
 
           for (const el of [...container.children]) {
             const slot = el.getAttribute('slot') || null;
-
-            await hydrateComponent(el as HTMLElement, {
-              ...baseContext,
-              ...actions,
-              props: { ...props },
-            });
-
             const target = slot
               ? domClone.querySelector(`slot[name="${slot}"]`)
               : domClone.querySelector('slot:not([name])');
 
-            if (target) target.replaceWith(el);
+            if (target) {
+              await hydrateComponent(el as HTMLElement, {
+                ...baseContext,
+                ...actions,
+                props: mergedProps,
+              });
+              target.replaceWith(el);
+            }
           }
         }
 
+        // 7. Set up reactive state before anything
+        const reactiveSources = actions.store || {};
+        setupReactivity(reactiveSources, app);
+
+        // 8. Run interpolation before binding
+        const interpolationObserver = observeInterpolationBindings(domClone, reactiveSources, mergedProps);
+
+        // 9. Bind declared actions like click handlers
+        const bindObserver = bindActionsWithObserver(app, actions);
+
+        // 10. Hydrate the full DOM tree
+        await hydrateComponent(domClone, {
+          ...baseContext,
+          ...actions,
+          props: mergedProps,
+        });
+
+        // 11. Hydrate any <component> children
+        await resolveChildComponents(domClone, {
+          ...baseContext,
+          ...actions,
+          props: mergedProps,
+        });
+
+        // 12. Patch the DOM in
         requestAnimationFrame(() => {
-          actions.onMount?.({ ...baseContext, ...actions, props });
-          if (actions.store) setupReactivity(actions.store, app);
-          currentDestroy = () => actions.onDestroy?.();
+          shallowDiffAndPatch(app, domClone.children);
+
+          // Re-apply reactivity on direct children
+          if (actions.store) {
+            Array.from(app.children).forEach(child => {
+              setupReactivity(actions.store, child as HTMLElement);
+            });
+          }
+
+          // 13. Call mount hook
+          actions.onMount?.({
+            ...baseContext,
+            ...actions,
+            props: mergedProps,
+          });
+
+          // 14. Setup destroy hook
+          currentDestroy = () => {
+            actions.onDestroy?.();
+            bindObserver?.disconnect();
+            interpolationObserver?.disconnect?.();
+          };
         });
       }
     }
 
-    await hydrateComponent(domClone, {
-      ...baseContext,
-      ...actions,
-      props: { ...props },
-    });
-
-    await resolveChildComponents(domClone, {
-      ...baseContext,
-      ...actions,
-      props: { ...props },
-    });
-
-
-
-    requestAnimationFrame(() => {
-      if (!app || !domClone || !domClone.children) {
-        console.warn('[hydrate] Skipping patch - app or domClone is null');
-        return;
-      }
-
-      shallowDiffAndPatch(app, domClone.children);
-
-      Array.from(app.children).forEach((child: any) => {
-        if (actions.store) setupReactivity(actions.store, child);
-      });
-    });
-
-
+    // 15. Inline <script> execution (non-module)
     const doc = new DOMParser().parseFromString(viewHTML, 'text/html');
     for (const oldScript of doc.querySelectorAll('script')) {
       const newScript = document.createElement('script');
@@ -341,29 +362,12 @@ export async function slotAwareRender({
       document.body.appendChild(newScript);
     }
 
+    // 16. Route-level lifecycle
     route.onLoad?.();
   };
 
   await renderView();
-
-  // watchEffect({
-  //   props,
-  //   store: actions.store,
-  //   callback: async ({ props: newProps, state }: { props: any, state: any }) => {
-  //     if (typeof actions.onPropsChanged === 'function') {
-  //       await actions.onPropsChanged({
-  //         props: newProps,
-  //         state,
-  //         context: { ...baseContext, ...actions },
-  //       });
-  //     }
-
-  //     console.log('[slotAwareRender] Watch triggered', { newProps, state });
-  //     await renderView();
-  //   },
-  // });
 }
-
 
 
 
@@ -401,8 +405,6 @@ export function handleRoute(app: HTMLElement, routes: Route[]): void {
 }
 
 
-// core/utils/loaders.js
-// core/utils/loaders.js
 
 /**
  * Attempts to load a file from the Vite src directory using import.meta.glob
@@ -410,18 +412,23 @@ export function handleRoute(app: HTMLElement, routes: Route[]): void {
  * @returns {Promise<string>} - raw file content
  */
 export async function fallbackImportFromSrc(filename: string): Promise<string> {
-  const cleanFilename = filename.replace(/^\/+/, '');
+  const cleanFilename = filename.replace(/^\/+/, '').replace(/^src\//, '');
 
-  const templates: Record<string, () => Promise<string>> | any = import.meta.glob('/src/**/*.{html,txt}', {
+  const templates: any = import.meta.glob('/src/**/*.{html,txt}', {
     as: 'raw',
     eager: false,
   });
 
-  const match = Object.keys(templates).find(key =>
-    key.endsWith(`/${cleanFilename}`) || key.endsWith(cleanFilename)
+  const candidates = Object.keys(templates);
+
+  // Try to match based on common patterns
+  const match = candidates.find(key =>
+    key.endsWith(`/${cleanFilename}`) || key.endsWith(`src/${cleanFilename}`) || key.endsWith(cleanFilename)
   );
 
   if (!match) {
+    console.error(`[fallbackImportFromSrc] Not found: '${filename}'`);
+    console.error('Searched keys:', candidates);
     throw new Error(`[fallbackImportFromSrc] '${filename}' not found in src`);
   }
 
@@ -432,36 +439,123 @@ export async function fallbackImportFromSrc(filename: string): Promise<string> {
   }
 }
 
+
 export async function resolveContent(
   input: string | (() => Promise<string | { default: string }>) | undefined
 ): Promise<string> {
   if (!input) return '';
 
+  let html: string;
+
+  // Run function to get HTML
   if (typeof input === 'function') {
     const result = await input();
-    return typeof result === 'string' ? result : result?.default || '';
+    html = typeof result === 'string' ? result : result?.default || '';
   }
 
-  if (typeof input === 'string') {
-    const isHTML = /<\/?[a-z][\s\S]*>/i.test(input.trim());
-    if (isHTML) return input;
+  // Raw inline HTML
+  else if (typeof input === 'string' && /<\/?[a-z][\s\S]*>/i.test(input.trim())) {
+    html = input;
+  }
 
+  // External path
+  else if (typeof input === 'string') {
     try {
       const res = await fetch(input);
       if (!res.ok) throw new Error('Not found in public');
-      return await res.text();
+      html = await res.text();
     } catch {
       try {
-        return await fallbackImportFromSrc(input);
-      } catch (importErr: any) {
-        console.error(importErr.message);
+        html = await fallbackImportFromSrc(input); // fallback via Vite
+      } catch (err: any) {
+        console.error(err.message);
         throw new Error(`[resolveContent] Cannot resolve: ${input}`);
       }
     }
+  } else {
+    html = '';
   }
 
-  return '';
+  //  Recursively resolve all <partial src="..."/>
+  html = await resolvePartials(html);
+
+  //  Optionally: Apply post-processing steps (reactivity, data-bind rewrites, etc.)
+  // For now, just return the string, as in your original version
+  return html;
 }
+
+
+
+export async function resolvePartials(html: string): Promise<string> {
+  const PARTIAL_TAG_REGEX = /<partial\s+src=["']([^"']+)["']\s*\/?>/gi;
+
+  let match: RegExpExecArray | null;
+
+  while ((match = PARTIAL_TAG_REGEX.exec(html))) {
+    const src = match[1];
+    const partialHtml = await loadPartialContent(src);
+    const resolved = await resolvePartials(partialHtml); // recursive
+    html = html.replace(match[0], resolved);
+    PARTIAL_TAG_REGEX.lastIndex = 0;
+  }
+
+  return html;
+}
+
+
+function normalizePath(input: string): string {
+  return input.replace(/^\.?\/?/, '').replace(/^src\//, '');
+}
+
+async function loadPartialContent(src: string): Promise<string> {
+  const normalized = `/src/${normalizePath(src)}`;
+
+  try {
+    return await fallbackImportFromSrc(normalized);
+  } catch (err) {
+    console.warn(`[resolvePartials] Could not load: ${src}`);
+    return `<!-- Failed to load partial: ${src} -->`;
+  }
+}
+
+
+export async function resolveScript(filename: string): Promise<any> {
+  const cleanFilename = filename
+    .replace(/^\/+/, '')       // remove leading slashes
+    .replace(/^src\//, '')     // normalize "src/" if passed
+    .replace(/\.(js|ts)$/, ''); // strip extension for flexible match
+
+  const scripts: Record<string, () => Promise<any>> = import.meta.glob('/src/**/*.{js,ts}', {
+    eager: false,
+  });
+
+  const candidates = Object.keys(scripts);
+
+  const match = candidates.find(key => {
+    const base = key
+      .replace(/^\/src\//, '')
+      .replace(/\.(js|ts)$/, '');
+
+    return (
+      base === cleanFilename ||             // exact
+      base.endsWith('/' + cleanFilename)    // relative path
+    );
+  });
+
+  if (!match) {
+    console.error(`[resolveScript] Not found: '${filename}'`);
+    console.error('Available scripts:', candidates);
+    throw new Error(`[resolveScript] '${filename}' not found in src`);
+  }
+
+  try {
+    const mod = await scripts[match]();
+    return mod;
+  } catch (err: any) {
+    throw new Error(`[resolveScript] Failed to import '${filename}' from '${match}': ${err.message}`);
+  }
+}
+
 
 
 export async function loadPage(
@@ -488,6 +582,8 @@ export async function loadPage(
       match,
     });
 
+
+
     console.log('running...');
   } catch (err) {
     console.error('Render error:', err);
@@ -498,3 +594,6 @@ export function handleHashChange(app: HTMLElement | Document | any = document.ge
 
   handleRoute(app, routes);
 }
+
+
+

@@ -1,4 +1,4 @@
-type Subscriber<T> = (value: T) => void;
+// type Subscriber<T> = (value: T) => void;
 
 export function useStore<T extends Record<string, any>>(initialState: T) {
   const subscribers = new Map<keyof T, ((value: T[keyof T]) => void)[]>();

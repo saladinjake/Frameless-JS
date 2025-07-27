@@ -6,24 +6,19 @@ type Props = Record<string, any>;
 type State = Record<string, any>;
 
 
-
-type Store<T extends Record<string, any>> = {
-  state: T;
-  setState: <K extends keyof T>(key: K, val: T[K]) => void;
-  subscribe: <K extends keyof T>(key: K, cb: (val: T[K]) => void) => void;
-  props?: any;
-  app?: any;
-  actions?: any
-};
-
-interface ComponentInstance<T extends Record<string, any> = State> {
-  template?: string;
-  store?: Store<T>;
-  onMount?: (ctx: any) => void;
-  onPropsChanged?: (ctx: { props: Props; state: T }) => void;
+interface Store {
+  state: State;
+  setState: (key: string, value: any) => void;
 }
 
+interface ComponentInstance {
+  template?: string;
+  store?: Store;
+  onMount?: (ctx: any) => void;
+  onPropsChanged?: (ctx: { props: Props; state: State }) => void;
+}
 
+type ComponentFn = (props: Props) => ComponentInstance;
 
 /**
  * Renders a component and sets up its reactive lifecycle.
@@ -32,11 +27,8 @@ interface ComponentInstance<T extends Record<string, any> = State> {
  * @param props - Initial props to pass to the component.
  * @returns HTMLElement root of the component.
  */
-export function renderComponent<T extends State = State>(
-  ComponentFn: (props: Props) => ComponentInstance<T>,
-  props: Props = {}
-): HTMLElement {
-  const instance: any = ComponentFn(props);
+export function renderComponent(ComponentFn: ComponentFn, props: Props = {}): HTMLElement {
+  const instance = ComponentFn(props);
   const wrapper = document.createElement('div');
 
   // Default to <slot> if no template
@@ -78,9 +70,9 @@ export function renderComponent<T extends State = State>(
           }
         }
 
-        // if (typeof instance.onPropsChanged === 'function') {
-        //   instance.onPropsChanged({ props, state });
-        // }
+        if (typeof instance.onPropsChanged === 'function') {
+          instance.onPropsChanged({ props, state });
+        }
       },
     });
   }
