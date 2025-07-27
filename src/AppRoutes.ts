@@ -1,51 +1,32 @@
-import {
-  configureRegistry,
-  loadModule,
-  loadTemplate,
-  loadStyle,
-} from './lib/core/registry';
-import {
-  scriptModules,
-  templateFiles,
-  styleFiles,
-} from './registry';
 
-configureRegistry({
-  scripts: scriptModules,
-  templates: templateFiles,
-  styles: styleFiles,
-});
+export async function loadTemplate(path: string) {
+  try {
+    // Attempt to load from public folder
+    const res = await fetch(path);
+    if (!res.ok) throw new Error('Not found in public');
+    return await res.text();
+  } catch (e) {
+    console.warn(`[TemplateLoader] Falling back to src for: ${path}`);
 
+    // Use Vite dynamic glob import from src (non-eager, async)
+    const pages = import.meta.glob('/src/**/*.{html,txt}', {
+      as: 'raw',
+      eager: false,
+    });
 
+    const filename = path.split('/').pop() || '';
+    const matchedKey = Object.keys(pages).find((key) =>
+      key.endsWith(`/${filename}`),
+    );
 
-// export async function loadTemplate(path: string) {
-//   try {
-//     // Attempt to load from public folder
-//     const res = await fetch(path);
-//     if (!res.ok) throw new Error('Not found in public');
-//     return await res.text();
-//   } catch (e) {
-//     console.warn(`[TemplateLoader] Falling back to src for: ${path}`);
+    if (!matchedKey) {
+      throw new Error(`Template '${filename}' not found in src fallback`);
+    }
 
-//     // Use Vite dynamic glob import from src (non-eager, async)
-//     const pages = import.meta.glob('/src/**/*.{html,txt}', {
-//       as: 'raw',
-//       eager: false,
-//     });
-
-//     const filename = path.split('/').pop() || '';
-//     const matchedKey = Object.keys(pages).find((key) =>
-//       key.endsWith(`/${filename}`),
-//     );
-
-//     if (!matchedKey) {
-//       throw new Error(`Template '${filename}' not found in src fallback`);
-//     }
-
-//     // Call the lazy-loaded function
-//     return pages[matchedKey]();
-//   }
-// }
+    // Call the lazy-loaded function
+    return pages[matchedKey]();
+  }
+}
 
 export const routes = [
   {
@@ -88,8 +69,8 @@ export const routes = [
     onLoad: () => console.log('Profile loaded'),
     layout: './views/layouts/default.html',
     middleware: async (params: any) => {
-      console.log(params)
-      return true
+     
+      return true;
     },
     script: ['modules/about'], // accepts array of string
   },
