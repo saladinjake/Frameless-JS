@@ -1,4 +1,17 @@
 
+
+// src/main.ts
+import {
+  configureRegistry,
+  loadModule,
+  // loadTemplate,
+  loadStyle,
+} from './lib/core/registry';
+import {
+  scriptModules,
+  templateFiles,
+  styleFiles,
+} from './registry';
 export async function loadTemplate(path: string) {
   try {
     // Attempt to load from public folder
